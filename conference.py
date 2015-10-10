@@ -112,6 +112,38 @@ class ConferenceApi(remote.Service):
 
     # - - - Session objects - - - - - - - - - - - - - - - - -
 
+    @endpoints.method(CONF_GET_REQUEST, SessionForms,
+                      path="sessions/{websafeConferenceKey}",
+                      http_method="GET",
+                      name="getConferenceSessions")
+    def getConferenceSessions(self, request):
+        """ Given a conference, return all sessions """
+        user = endpoints.get_current_user()
+        # auth the user
+        if not user:
+            raise endpoints.UnauthorizedException("Authorization required")
+
+        # Get the Conference key
+        try:
+            c_key = ndb.Key(urlsafe=request.websafeConferenceKey)
+        except Exception:
+            raise endpoints.BadRequestException(
+                "websafeConferenceKey is not valid."
+            )
+        conf = c_key.get()
+        # Check if the conference exists
+        if not conf:
+            raise endpoints.NotFoundException(
+                "Could not find corresponding key to conference."
+                " Key: {}".format(request.websafeConferenceKey)
+            )
+        # Get the conferences sessions
+        sessions = Session.query(ancestor=c_key)
+        # Return a SessionForm for a Session
+        return SessionForms(
+            items=[self._copyConferenceSessionToForm(s) for s in sessions]
+        )
+
     def _createSessionObject(self, request):
         user = endpoints.get_current_user()
         # Auth the user
@@ -180,6 +212,24 @@ class ConferenceApi(remote.Service):
     def createSession(self, request):
         """ Create new session """
         return self._createSessionObject(request)
+
+    def _copyConferenceSessionToForm(self, sess):
+        """Copy relevant fields from Session to SessionForm."""
+        sf = ConferenceForm()
+        for field in sf.all_fields():
+            if hasattr(sess, field.name):
+                # convert date to date string; just copy others
+                if field.name.endswith('date'):
+                    setattr(sf, field.name, str(getattr(sess, field.name)))
+                # Convert typeOfSession to enum
+                elif field.name == "typeOfSession":
+                    setattr(sf, field.name,
+                            getattr(TypeOfSession, getattr(sess, field.name)))
+                else:
+                    setattr(sf, field.name, getattr(sess, field.name))
+            elif field.name == "parentConference":
+                setattr(sf, field.name, sess.key.urlsafe())
+        return sf
 
     # - - - Conference objects - - - - - - - - - - - - - - - - -
 
