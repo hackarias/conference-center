@@ -23,7 +23,8 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
-from models import ConflictException
+from models import ConflictException, Session, SessionForm, SessionForms, \
+    TypeOfSession
 from models import Profile
 from models import ProfileMiniForm
 from models import ProfileForm
@@ -50,6 +51,11 @@ ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+SESS_DEFAULTS = {
+    "duration": 0,
+    "typeOfSession": TypeOfSession.Not_Specified
+}
+
 DEFAULTS = {
     "city": "Default City",
     "maxAttendees": 0,
@@ -73,6 +79,16 @@ FIELDS = {
     'MAX_ATTENDEES': 'maxAttendees',
 }
 
+SESS_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeKey=messages.StringField(1),
+)
+
+SESS_POST_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeKey=messages.StringField(1),
+)
+
 CONF_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
     websafeConferenceKey=messages.StringField(1),
@@ -93,6 +109,77 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
                scopes=[EMAIL_SCOPE])
 class ConferenceApi(remote.Service):
     """Conference API v0.1"""
+
+    # - - - Session objects - - - - - - - - - - - - - - - - -
+
+    def _createSessionObject(self, request):
+        user = endpoints.get_current_user()
+        # Auth the user
+        if not user:
+            raise endpoints.UnauthorizedException("Authorization required")
+
+        user_id = getUserId(user)
+
+        if not request.name:
+            raise endpoints.BadRequestException(
+                "Session 'name' field required"
+            )
+
+        # copy SessionForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in
+                request.all_fields()}
+
+        # Add default values for those missing
+        # (both data model & outbound Message)
+        for df in SESS_DEFAULTS:
+            if data[df] in (None, []):
+                data[df] = SESS_DEFAULTS[df]
+                setattr(request, df, SESS_DEFAULTS[df])
+
+        # We are going to need information from the Conference the session
+        # belongs to.
+        try:
+            c_key = ndb.Key(urlsafe=request.parentConference)
+        except Exception:
+            raise endpoints.BadRequestException("Parent conference is invalid")
+
+        conference = c_key.get()
+
+        # Convert dates from strings to Date objects
+        if data['date']:
+            data['date'] = datetime.strptime(data['data'][:10],
+                                             "Y%-%m-%d").date()
+
+        # Convert startTime to Time object from string
+        if data['startTime']:
+            data['startTime'] = datetime.strptime(data['startTime'][:5],
+                                                  "%H:%M").time()
+
+        # Convert typOfSession to string
+        if data['typeOfSession']:
+            data['typeOfSession'] = str(data['typeOfSession'])
+
+        # Generate profile key based on user ID and Session
+        # ID based on Profile key get Conference key from ID
+        p_key = ndb.Key(Profile, user_id)
+        s_id = Session.allocate_ids(size=1, parent=p_key)[0]
+        s_key = ndb.Key(Session, s_id, parent=p_key)
+        data['key'] = s_key
+
+        Session(**data).put()
+        taskqueue.add(params={'email': user.email(),
+                              'conferenceInfo': repr(request)},
+                      url='/tasks/send_confirmation_email'
+                      )
+        return request
+
+    @endpoints.method(SessionForm, SessionForm,
+                      path="session",
+                      http_method="POST",
+                      name="createSession")
+    def createSession(self, request):
+        """ Create new session """
+        return self._createSessionObject(request)
 
     # - - - Conference objects - - - - - - - - - - - - - - - - -
 
@@ -206,7 +293,7 @@ class ConferenceApi(remote.Service):
                 setattr(conf, field.name, data)
         conf.put()
         prof = ndb.Key(Profile, user_id).get()
-        return self._copyConferenceToForm(conf, getattr(prof, 'display_name'))
+        return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
 
     @endpoints.method(ConferenceForm, ConferenceForm, path='conference',
                       http_method='POST', name='createConference')
@@ -233,7 +320,7 @@ class ConferenceApi(remote.Service):
                 'No conference found with key: %s' % request.websafeConferenceKey)
         prof = conf.key.parent().get()
         # return ConferenceForm
-        return self._copyConferenceToForm(conf, getattr(prof, 'display_name'))
+        return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
 
     @endpoints.method(message_types.VoidMessage, ConferenceForms,
                       path='getConferencesCreated',
@@ -252,7 +339,7 @@ class ConferenceApi(remote.Service):
         # return set of ConferenceForm objects per Conference
         return ConferenceForms(
             items=[
-                self._copyConferenceToForm(conf, getattr(prof, 'display_name'))
+                self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
                 for conf in confs]
         )
 
@@ -315,7 +402,7 @@ class ConferenceApi(remote.Service):
         """Query for conferences."""
         conferences = self._getQuery(request)
 
-        # need to fetch organiser display_name from profiles
+        # need to fetch organiser displayName from profiles
         # get all keys and use get_multi for speed
         organisers = [(ndb.Key(Profile, conf.organizerUserId)) for conf in
                       conferences]
@@ -381,7 +468,7 @@ class ConferenceApi(remote.Service):
 
         # if save_profile(), process user-modifyable fields
         if save_request:
-            for field in ('display_name', 'tee_shirt_size'):
+            for field in ('displayName', 'tee_shirt_size'):
                 if hasattr(save_request, field):
                     val = getattr(save_request, field)
                     if val:
