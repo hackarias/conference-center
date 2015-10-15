@@ -78,6 +78,23 @@ FIELDS = {
     'MONTH': 'month',
     'MAX_ATTENDEES': 'maxAttendees',
 }
+SESS_BY_SPEAKER_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1, required=True),
+    date=messages.StringField(2, required=True)
+)
+
+SESS_BY_DATE_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1, required=True),
+    date=messages.StringField(2, required=True)
+)
+
+SESS_BY_TYPE_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1, required=True),
+    typeOfSession=messages.StringField(2, required=True)
+)
 
 SESS_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
@@ -110,7 +127,85 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
 class ConferenceApi(remote.Service):
     """Conference API v0.1"""
 
+    @endpoints.method(SESS_BY_SPEAKER_GET_REQUEST, SessionForms,
+                      path="getConferenceSessionsBySpeaker/"
+                           "{websafeConferenceKey}/{speaker}",
+                      http_method="GET",
+                      name="getConferenceSessionsBySpeaker")
+    def getSessionsBySpeaker(self, request):
+        """ Given a speaker, return all sessions given by this particular
+        speaker, across all conferences """
+        # Make sure user is authenticated
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException("Authorization required.")
+
+        # Filter on speaker
+        sessions = Session.query( Session.speaker == request.speaker)
+
+        # DO the thing with the thing
+        return SessionForms(
+            items=[self._copySessionToForm(s) for s in sessions]
+        )
+
     # - - - Session objects - - - - - - - - - - - - - - - - -
+
+
+    # @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForm,
+    #                   path="getConferenceSessionsByType/"
+    #                        "{websafeConferenceKey}/{typeOfSession}",
+    #                   http_method="GET",
+    #                   name="getConferenceSessionsByType")
+    # def getConferenceSessionsByType(self, request):
+    #     # make sure user is authed
+    #     user = endpoints.get_current_user()
+    #     if not user:
+    #         raise endpoints.UnauthorizedException("Authorization required.")
+    #
+    #     # Get the session's conference key
+    #     conf_key = Session.query(
+    #         ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)
+    #     )
+    #
+    #     sessions = conf_key.filter(
+    #         Session.typeOfSession == request.typeOfSession
+    #     )
+    #
+    #     return SessionForms(
+    #         items=[self._copySessionToForm(s) for s in sessions]
+    #     )
+
+    @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForms,
+                      path="getConferenceSessionsByDate/"
+                           "{websafeConferenceKey}/{date}",
+                      http_method="GET",
+                      name="getConferenceSessionsByDate")
+    def getConferenceSessionsByDate(self, request):
+        """ Given a conference, return all sessions of a specified type
+        (eg lecture, keynote, workshop) """
+        # Make sure user is authenticated
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException("Authorization required.")
+
+        # Get the session's conference key
+        try:
+            sessions = Session.query(
+                ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)
+            )
+        except Exception:
+            raise endpoints.BadRequestException(
+                "websafeConferenceKey is not valid"
+            )
+
+        # Convert date to date object
+        date = datetime.strptime(request.date[:10], "%Y-%m-%d").date()
+        # Filter sessions by date
+        sessions = sessions.filter(Session.date == date)
+        # Return a SessionForm as Session
+        return SessionForms(
+            items=[self._copySessionToForm(sess) for sess in sessions]
+        )
 
     @endpoints.method(CONF_GET_REQUEST, SessionForms,
                       path="sessions/{websafeConferenceKey}",
@@ -141,7 +236,7 @@ class ConferenceApi(remote.Service):
         sessions = Session.query(ancestor=c_key)
         # Return a SessionForm for a Session
         return SessionForms(
-            items=[self._copyConferenceSessionToForm(s) for s in sessions]
+            items=[self._copySessionToForm(s) for s in sessions]
         )
 
     def _createSessionObject(self, request):
@@ -179,8 +274,8 @@ class ConferenceApi(remote.Service):
 
         # Convert dates from strings to Date objects
         if data['date']:
-            data['date'] = datetime.strptime(data['data'][:10],
-                                             "Y%-%m-%d").date()
+            data['date'] = (datetime.strptime(data['date'][:10],
+                                              "%Y-%m-%d").date())
 
         # Convert startTime to Time object from string
         if data['startTime']:
@@ -213,22 +308,26 @@ class ConferenceApi(remote.Service):
         """ Create new session """
         return self._createSessionObject(request)
 
-    def _copyConferenceSessionToForm(self, sess):
+    def _copySessionToForm(self, sess):
         """Copy relevant fields from Session to SessionForm."""
-        sf = ConferenceForm()
+        sf = SessionForm()
         for field in sf.all_fields():
             if hasattr(sess, field.name):
                 # convert date to date string; just copy others
-                if field.name.endswith('date'):
+                if field.name == 'date' or field.name == "startTime":
                     setattr(sf, field.name, str(getattr(sess, field.name)))
+                elif field.name == "startTime":
+                    setattr(sf, field.name, str(getattr(sess, field.name)))
+
                 # Convert typeOfSession to enum
                 elif field.name == "typeOfSession":
                     setattr(sf, field.name,
                             getattr(TypeOfSession, getattr(sess, field.name)))
                 else:
                     setattr(sf, field.name, getattr(sess, field.name))
-            elif field.name == "parentConference":
+            elif field.name == "websafeConferenceKey":
                 setattr(sf, field.name, sess.key.urlsafe())
+        sf.check_initialized()
         return sf
 
     # - - - Conference objects - - - - - - - - - - - - - - - - -

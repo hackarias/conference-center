@@ -130,7 +130,7 @@ class Session(ndb.Model):
     duration = ndb.IntegerProperty()
     typeOfSession = ndb.StringProperty(default="Not_Specified")
     date = ndb.DateProperty()
-    startTime = ndb.DateProperty()
+    startTime = ndb.TimeProperty()
     parentConference = ndb.StringProperty(required=True)
 
 
