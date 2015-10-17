@@ -23,8 +23,8 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
-from models import ConflictException, Session, SessionForm, SessionForms,
-TypeOfSession, Speaker, SpeakerForm, SpeakerForms
+from models import ConflictException, Session, SessionForm, SessionForms, \
+    TypeOfSession, Speaker, SpeakerForm, SpeakerForms
 from models import Profile
 from models import ProfileMiniForm
 from models import ProfileForm
@@ -205,7 +205,7 @@ class ConferenceApi(remote.Service):
                       http_method="GET",
                       name="getConferenceSessionsByType")
     def getConferenceSessionsByType(self, request):
-        # make sure user is authed
+        # Make sure user is authenticated
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException("Authorization required.")
@@ -315,8 +315,16 @@ class ConferenceApi(remote.Service):
                 "You have to be the creator of the conference to create a"
                 " session"
             )
+        # Check if the speakerKey is valid
+        if request.speakerKey:
+            try:
+                speaker = ndb.Key(urlsafe=request.speakerKey).get()
+            except Exception:
+                raise endpoints.BadRequestException(
+                    "speakerKey {} is not valid.".format(request.speakerKey)
+                )
 
-        # Copy SessionForm/ProtoRPC Message into dict
+        # Copy SessionForm/ProtoRPC Message into dict.
         data = {field.name: getattr(request, field.name) for field in
                 request.all_fields()}
 
@@ -371,10 +379,7 @@ class ConferenceApi(remote.Service):
                 # convert date to date string; just copy others
                 if field.name == 'date' or field.name == "startTime":
                     setattr(sf, field.name, str(getattr(sess, field.name)))
-                elif field.name == "startTime":
-                    setattr(sf, field.name, str(getattr(sess, field.name)))
-
-                # Convert typeOfSession to enum
+                # Convert to enum
                 elif field.name == "typeOfSession":
                     setattr(sf, field.name,
                             getattr(TypeOfSession, getattr(sess, field.name)))
@@ -382,7 +387,7 @@ class ConferenceApi(remote.Service):
                     setattr(sf, field.name, getattr(sess, field.name))
             elif field.name == "websafeConferenceKey":
                 setattr(sf, field.name, sess.key.urlsafe())
-        # sf.check_initialized()
+        sf.check_initialized()
         return sf
 
     # - - - Conference objects - - - - - - - - - - - - - - - - -
