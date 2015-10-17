@@ -199,28 +199,31 @@ class ConferenceApi(remote.Service):
 
     # - - - Session objects - - - - - - - - - - - - - - - - -
 
-    @endpoints.method(SESS_BY_TYPE_GET_REQUEST, SessionForm,
-                      path="getConferenceSessionsByType/"
+    @endpoints.method(SESS_BY_TYPE_GET_REQUEST, SessionForms,
+                      path="getSessionsByType/"
                            "{websafeConferenceKey}/{typeOfSession}",
                       http_method="GET",
                       name="getConferenceSessionsByType")
     def getConferenceSessionsByType(self, request):
+        """
+        Given a conference, return all sessions of a specified type
+        (eg lecture, keynote, workshop)
+        """
         # Make sure user is authenticated
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException("Authorization required.")
-
         # Get the session's conference key
         conf_key = Session.query(
             ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)
         )
-
+        # Filter on typeOfSession
         sessions = conf_key.filter(
             Session.typeOfSession == request.typeOfSession
         )
-
+        # Return a SessionForm for a Session
         return SessionForms(
-            items=[self._copySessionToForm(s) for s in sessions]
+            items=[self._copySessionToForm(sess) for sess in sessions]
         )
 
     # @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForms,
