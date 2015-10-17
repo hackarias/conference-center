@@ -1,32 +1,4 @@
 #!/usr/bin/env python
-from datetime import datetime
-
-import endpoints
-from protorpc import messages
-from protorpc import message_types
-from protorpc import remote
-from google.appengine.api import memcache
-from google.appengine.api import taskqueue
-from google.appengine.ext import ndb
-
-from models import ConflictException, Session, SessionForm, SessionForms, \
-    TypeOfSession, Speaker, SpeakerForm
-from models import Profile
-from models import ProfileMiniForm
-from models import ProfileForm
-from models import StringMessage
-from models import BooleanMessage
-from models import Conference
-from models import ConferenceForm
-from models import ConferenceForms
-from models import ConferenceQueryForms
-from models import TeeShirtSize
-from settings import WEB_CLIENT_ID
-from settings import ANDROID_CLIENT_ID
-from settings import IOS_CLIENT_ID
-from settings import ANDROID_AUDIENCE
-from utils import getUserId
-
 """
 conference.py -- Udacity conference server-side Python App Engine API;
     uses Google Cloud Endpoints
@@ -37,6 +9,43 @@ created by wesc on 2014 apr 21
 
 """
 __author__ = 'wesc+api@google.com (Wesley Chun)'
+from datetime import datetime
+
+import endpoints
+
+from protorpc import messages
+from protorpc import message_types
+from protorpc import remote
+
+from google.appengine.api import memcache
+from google.appengine.api import taskqueue
+
+from google.appengine.ext import ndb
+
+from models import ConflictException
+from models import Session
+from models import SessionForm
+from models import SessionForms
+from models import TypeOfSession
+from models import Speaker
+from models import SpeakerForm
+from models import Profile
+from models import ProfileMiniForm
+from models import ProfileForm
+from models import StringMessage
+from models import BooleanMessage
+from models import Conference
+from models import ConferenceForm
+from models import ConferenceForms
+from models import ConferenceQueryForms
+from models import TeeShirtSize
+
+from settings import WEB_CLIENT_ID
+from settings import ANDROID_CLIENT_ID
+from settings import IOS_CLIENT_ID
+from settings import ANDROID_AUDIENCE
+
+from utils import getUserId
 
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
@@ -44,6 +53,7 @@ MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - Globals - - - - - - - - - - - - - - - - - - - - - - - - -
 
 SESS_DEFAULTS = {
     "duration": 0,
@@ -113,8 +123,7 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-
+# - - - - Speaker section - - - - - - - - - - - - - - - - - -
 def _copy_speaker_to_form(copy_speaker):
     """ Copy relevant fields from Speaker to SpeakerForm """
     sf = SpeakerForm()
@@ -130,7 +139,7 @@ def _copy_speaker_to_form(copy_speaker):
 def _create_speaker_object(request):
     """ Creates a Speaker object """
 
-    # Make sure that the user is authed
+    # Make sure that the user is authorized
     user = endpoints.get_current_user()
     if not user:
         raise endpoints.UnauthorizedException("Authorization required.")
@@ -152,6 +161,8 @@ def _create_speaker_object(request):
     return request
 
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - Speaker section - - - - - - - - - - - - - - - - - -
 def _create_session_object(request):
     global speaker
     user = endpoints.get_current_user()
@@ -230,6 +241,8 @@ def _create_session_object(request):
     return request
 
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - Session section - - - - - - - - - - - - - - - - - -
 def _copy_session_to_form(sess):
     """Copy relevant fields from Session to SessionForm."""
     sf = SessionForm()
@@ -250,6 +263,8 @@ def _copy_session_to_form(sess):
     return sf
 
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - Conference section - - - - - - - - - - - - - - - - - -
 def _copy_conference_to_form(conf, display_name):
     """Copy relevant fields from Conference to ConferenceForm."""
     cf = ConferenceForm()
@@ -328,6 +343,8 @@ def _create_conference_object(request):
     return request
 
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - Filters section - - - - - - - - - - - - - - - - - -
 def _format_filters(filters):
     """Parse, check validity and format user supplied filters."""
     formatted_filters = []
@@ -363,6 +380,8 @@ def _format_filters(filters):
     return inequality_field, formatted_filters
 
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - Profile section - - - - - - - - - - - - - - - - - -
 def _copy_profile_to_form(prof):
     """Copy relevant fields from Profile to ProfileForm."""
     # copy relevant fields from Profile to ProfileForm
@@ -383,7 +402,7 @@ def _get_profile_from_user():
     """
     Return user Profile from datastore, creating new one if non-existent.
     """
-    # make sure user is authed
+    # Make sure user is authorized
     user = endpoints.get_current_user()
     if not user:
         raise endpoints.UnauthorizedException('Authorization required')
@@ -410,7 +429,7 @@ def _do_profile(save_request=None):
     # get user Profile
     prof = _get_profile_from_user()
 
-    # if save_profile(), process user-modifyable fields
+    # if save_profile(), process user-modifiable fields
     if save_request:
         for field in ('displayName', 'tee_shirt_size'):
             if hasattr(save_request, field):
@@ -427,18 +446,18 @@ def _do_profile(save_request=None):
     return _copy_profile_to_form(prof)
 
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - Query section - - - - - - - - - - - - - - - - - -
 def _get_query(request):
     """Return formatted query from the submitted filters."""
     q = Conference.query()
     inequality_filter, filters = _format_filters(request.filters)
-
     # If exists, sort on inequality FILTER first
     if not inequality_filter:
         q = q.order(Conference.name)
     else:
         q = q.order(ndb.GenericProperty(inequality_filter))
         q = q.order(Conference.name)
-
     for FILTER in filters:
         if FILTER["field"] in ["month", "maxAttendees"]:
             FILTER["value"] = int(FILTER["value"])
@@ -449,15 +468,17 @@ def _get_query(request):
     return q
 
 
-@endpoints.api(name='conference', version='v1', audiences=[ANDROID_AUDIENCE],
-               allowed_client_ids=[WEB_CLIENT_ID, API_EXPLORER_CLIENT_ID,
+@endpoints.api(name='conference', version='v1',
+               audiences=[ANDROID_AUDIENCE],
+               allowed_client_ids=[WEB_CLIENT_ID,
+                                   API_EXPLORER_CLIENT_ID,
                                    ANDROID_CLIENT_ID, IOS_CLIENT_ID],
                scopes=[EMAIL_SCOPE])
 class ConferenceApi(remote.Service):
     """Conference API v0.1"""
 
-    # - - - Speaker objects - - - - - - - - - - - - - - - - -
-
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # - - - Speaker objects - - - - - - - - - - - - - - - - - - -
     @endpoints.method(SpeakerForm, SpeakerForm,
                       path="createSpeaker",
                       http_method="POST",
@@ -467,9 +488,7 @@ class ConferenceApi(remote.Service):
         return _create_speaker_object(request)
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
     # - - - Session objects - - - - - - - - - - - - - - - - -
-
     @endpoints.method(SESS_BY_SPEAKER_GET_REQUEST, SessionForms,
                       path="getSessionsBySpeaker/"
                            "{websafeConferenceKey}/{speakerKey}",
@@ -484,10 +503,8 @@ class ConferenceApi(remote.Service):
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException("Authorization required.")
-
         # Filter on speakerKey
         sessions = Session.query(Session.speakerKey == request.speaker)
-
         # Return a SessionForm as Session
         return SessionForms(
             items=[_copy_session_to_form(s) for s in sessions]
@@ -592,6 +609,7 @@ class ConferenceApi(remote.Service):
         """ Create new session """
         return _create_session_object(request)
 
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # - - - Conference objects - - - - - - - - - - - - - - - - -
 
     @ndb.transactional()
@@ -710,6 +728,7 @@ class ConferenceApi(remote.Service):
                 for conf in conferences]
         )
 
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # - - - Profile objects - - - - - - - - - - - - - - - - - - -
 
     @endpoints.method(message_types.VoidMessage, ProfileForm,
@@ -728,6 +747,7 @@ class ConferenceApi(remote.Service):
         """Update & return user profile."""
         return _do_profile(request)
 
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # - - - Announcements - - - - - - - - - - - - - - - - - - - -
 
     @staticmethod
@@ -763,8 +783,8 @@ class ConferenceApi(remote.Service):
         return StringMessage(
             data=memcache.get(MEMCACHE_ANNOUNCEMENTS_KEY) or "")
 
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # - - - Registration - - - - - - - - - - - - - - - - - - - -
-
     @ndb.transactional(xg=True)
     def _conference_registration(self, request, reg=True):
         """Register or unregister user for selected conference."""
