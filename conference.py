@@ -156,6 +156,19 @@ class ConferenceApi(remote.Service):
         )
 
     # - - - Speaker objects - - - - - - - - - - - - - - - - -
+
+    def _copySpeakerToForm(self, speaker):
+        """ Copy relevant fields from Speaker to SpeakerForm """
+        sf = SpeakerForm()
+        for field in sf.all_fields():
+            if hasattr(speaker, field.name):
+                setattr(sf, field.name, getattr(speaker, field.name))
+            elif field.name == "websafeKey":
+                setattr(sf, field.name, speaker.key.urlsafe()
+        sf.check_initialized()
+        return sf
+
+
     def _createSpeakerObject(self, request):
         """ Creates a Speaker object """
 
@@ -164,31 +177,23 @@ class ConferenceApi(remote.Service):
         if not user:
             raise endpoints.UnauthorizedException("Authorization required.")
 
-        user_id = getUserId(user)
-
         if not request.name:
             raise endpoints.BadRequestException("Speaker 'name' required.")
 
         # Copy SpeakerForm/ProtoRPC Message into dict
-        data = {field.name: getattr(request, field.name) for
-                field in request.all_fields()}
+        data = {field.name: getattr(request, field.name) for field in
+                request.all_fields()}
 
-        # Generate Profile key based on user ID and Session
-        p_key = ndb.Key(Profile, user_id)
-        s_id = Session.allocate_ids(size=1, parent=p_key)[0]
-        s_key = ndb.Key(Session, s_id, parent=p_key)
+        # Generate key for Speaker
+        s_id = Speaker.allocate_ids(size=1)[0]
+        s_key = ndb.Key(Speaker, s_id)
         data['key'] = s_key
 
-        # Create Speaker, send email to organizer confirming creation of
-        # Speaker & return modified SpeakerForm
+        # Create Speaker
         Speaker(**data).put()
-        taskqueue.add(params={'email': user.email(),
-                              'conferenceInfo': repr(request)},
-                      url='/tasks/send_confirmation_email'
-                      )
 
     @endpoints.method(SpeakerForm, SpeakerForm,
-                      path="createSpeakerObject",
+                      path="createSpeaker",
                       http_method="POST",
                       name="createSpeakerObject")
     def createSpeaker(self, request):
