@@ -23,8 +23,8 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
-from models import ConflictException, Session, SessionForm, SessionForms, \
-    TypeOfSession, Speaker, SpeakerForm, SpeakerForms
+from models import ConflictException, Session, SessionForm, SessionForms,
+TypeOfSession, Speaker, SpeakerForm, SpeakerForms
 from models import Profile
 from models import ProfileMiniForm
 from models import ProfileForm
@@ -33,7 +33,6 @@ from models import BooleanMessage
 from models import Conference
 from models import ConferenceForm
 from models import ConferenceForms
-from models import ConferenceQueryForm
 from models import ConferenceQueryForms
 from models import TeeShirtSize
 
@@ -164,7 +163,6 @@ class ConferenceApi(remote.Service):
         sf.check_initialized()
         return sf
 
-
     def _createSpeakerObject(self, request):
         """ Creates a Speaker object """
 
@@ -264,11 +262,11 @@ class ConferenceApi(remote.Service):
     def getConferenceSessions(self, request):
         """ Given a conference, return all sessions """
         user = endpoints.get_current_user()
-        # auth the user
+        # Auth the user
         if not user:
             raise endpoints.UnauthorizedException("Authorization required")
 
-        # Get the Conference key
+        # Try to get the Conference key
         try:
             c_key = ndb.Key(urlsafe=request.websafeConferenceKey)
         except Exception:
@@ -302,7 +300,23 @@ class ConferenceApi(remote.Service):
                 "Session 'name' field required"
             )
 
-        # copy SessionForm/ProtoRPC Message into dict
+        # We are going to need information from the Conference the session
+        # belongs to.
+        try:
+            c_key = ndb.Key(urlsafe=request.parentConference)
+        except Exception:
+            raise endpoints.BadRequestException("Parent conference is invalid")
+
+        conference = c_key.get()
+
+        # Check that the current user is the same who created the conference
+        if user_id != conference.organizerUserId:
+            raise endpoints.ForbiddenException(
+                "You have to be the creator of the conference to create a"
+                " session"
+            )
+
+        # Copy SessionForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in
                 request.all_fields()}
 
@@ -312,15 +326,6 @@ class ConferenceApi(remote.Service):
             if data[df] in (None, []):
                 data[df] = SESS_DEFAULTS[df]
                 setattr(request, df, SESS_DEFAULTS[df])
-
-        # We are going to need information from the Conference the session
-        # belongs to.
-        try:
-            c_key = ndb.Key(urlsafe=request.parentConference)
-        except Exception:
-            raise endpoints.BadRequestException("Parent conference is invalid")
-
-        conference = c_key.get()
 
         # Convert dates from strings to Date objects
         if data['date']:
@@ -377,7 +382,7 @@ class ConferenceApi(remote.Service):
                     setattr(sf, field.name, getattr(sess, field.name))
             elif field.name == "websafeConferenceKey":
                 setattr(sf, field.name, sess.key.urlsafe())
-        sf.check_initialized()
+        # sf.check_initialized()
         return sf
 
     # - - - Conference objects - - - - - - - - - - - - - - - - -
@@ -400,7 +405,9 @@ class ConferenceApi(remote.Service):
         return cf
 
     def _createConferenceObject(self, request):
-        """Create or update Conference object, returning ConferenceForm/request."""
+        """
+        Create or update Conference object, returning ConferenceForm/request.
+        """
         # preload necessary data items
         user = endpoints.get_current_user()
         if not user:
@@ -417,13 +424,15 @@ class ConferenceApi(remote.Service):
         del data['websafeKey']
         del data['organizerDisplayName']
 
-        # add default values for those missing (both data model & outbound Message)
+        # Add default values for those missing
+        # (both data model & outbound Message)
         for df in CONF_DEFAULTS:
             if data[df] in (None, []):
                 data[df] = CONF_DEFAULTS[df]
                 setattr(request, df, CONF_DEFAULTS[df])
 
-        # convert dates from strings to Date objects; set month based on start_date
+        # convert dates from strings to Date objects.
+        # set month based on start_date
         if data['startDate']:
             data['startDate'] = datetime.strptime(data['startDate'][:10],
                                                   "%Y-%m-%d").date()
@@ -470,7 +479,8 @@ class ConferenceApi(remote.Service):
         # check that conference exists
         if not conf:
             raise endpoints.NotFoundException(
-                'No conference found with key: %s' % request.websafeConferenceKey)
+                'No conference found with key: %s' %
+                request.websafeConferenceKey)
 
         # check that user is owner
         if user_id != conf.organizerUserId:
@@ -516,7 +526,8 @@ class ConferenceApi(remote.Service):
         conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
         if not conf:
             raise endpoints.NotFoundException(
-                'No conference found with key: %s' % request.websafeConferenceKey)
+                'No conference found with key: %s' %
+                request.websafeConferenceKey)
         prof = conf.key.parent().get()
         # return ConferenceForm
         return self._copyConferenceToForm(conf, getattr(prof, 'displayName'))
@@ -581,9 +592,13 @@ class ConferenceApi(remote.Service):
 
             # Every operation except "=" is an inequality
             if filtr["operator"] != "=":
-                # check if inequality operation has been used in previous filters
-                # disallow the filter if inequality was performed on a different field before
-                # track the field on which the inequality operation is performed
+                """
+                Check if inequality operation has been used in previous
+                filters.
+                Disallow the filter if inequality was performed on a different
+                field before.
+                Track the field on which the inequality operation is performed.
+                """
                 if inequality_field and inequality_field != filtr["field"]:
                     raise endpoints.BadRequestException(
                         "Inequality filter is allowed on only one field.")
@@ -616,8 +631,7 @@ class ConferenceApi(remote.Service):
         return ConferenceForms(
             items=[
                 self._copyConferenceToForm(conf, names[conf.organizerUserId])
-                for conf in \
-                conferences]
+                for conf in conferences]
         )
 
     # - - - Profile objects - - - - - - - - - - - - - - - - - - -
@@ -638,7 +652,9 @@ class ConferenceApi(remote.Service):
         return pf
 
     def _getProfileFromUser(self):
-        """Return user Profile from datastore, creating new one if non-existent."""
+        """
+        Return user Profile from datastore, creating new one if non-existent.
+        """
         # make sure user is authed
         user = endpoints.get_current_user()
         if not user:
@@ -799,9 +815,8 @@ class ConferenceApi(remote.Service):
 
         # return set of ConferenceForm objects per Conference
         return ConferenceForms(items=[
-            self._copyConferenceToForm(conf, names[conf.organizerUserId]) \
-            for conf in conferences]
-                               )
+            self._copyConferenceToForm(conf, names[conf.organizerUserId])
+            for conf in conferences])
 
     @endpoints.method(CONF_GET_REQUEST, BooleanMessage,
                       path='conference/{websafeConferenceKey}',
