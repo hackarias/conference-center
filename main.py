@@ -20,7 +20,7 @@ from conference import ConferenceApi
 class SetAnnouncementHandler(webapp2.RequestHandler):
     def get(self):
         """Set Announcement in Memcache."""
-        ConferenceApi._cacheAnnouncement()
+        ConferenceApi._cache_announcement()
         self.response.set_status(204)
 
 

@@ -204,7 +204,7 @@ conferenceApp.controllers.controller('CreateConferenceCtrl',
         }
 
         /**
-         * Invokes the conference.createConference API.
+         * Invokes the conference.create_conference API.
          *
          * @param conferenceForm the form object.
          */
@@ -424,7 +424,7 @@ conferenceApp.controllers.controller('ShowConferenceCtrl', function ($scope, $lo
     };
 
     /**
-     * Invokes the conference.queryConferences API.
+     * Invokes the conference.query_conferences API.
      */
     $scope.queryConferencesAll = function () {
         var sendFilters = {
@@ -469,7 +469,7 @@ conferenceApp.controllers.controller('ShowConferenceCtrl', function ($scope, $lo
     }
 
     /**
-     * Invokes the conference.getConferencesCreated method.
+     * Invokes the conference.get_conferences_created method.
      */
     $scope.getConferencesCreated = function () {
         $scope.loading = true;
@@ -507,7 +507,7 @@ conferenceApp.controllers.controller('ShowConferenceCtrl', function ($scope, $lo
 
     /**
      * Retrieves the conferences to attend by calling the conference.get_profile method and
-     * invokes the conference.getConference method n times where n == the number of the conferences to attend.
+     * invokes the conference.get_conference method n times where n == the number of the conferences to attend.
      */
     $scope.getConferencesAttend = function () {
         $scope.loading = true;
@@ -554,7 +554,7 @@ conferenceApp.controllers.controller('ConferenceDetailCtrl', function ($scope, $
 
     /**
      * Initializes the conference detail page.
-     * Invokes the conference.getConference method and sets the returned conference in the $scope.
+     * Invokes the conference.get_conference method and sets the returned conference in the $scope.
      *
      */
     $scope.init = function () {
@@ -603,7 +603,7 @@ conferenceApp.controllers.controller('ConferenceDetailCtrl', function ($scope, $
 
 
     /**
-     * Invokes the conference.registerForConference method.
+     * Invokes the conference.register_for_conference method.
      */
     $scope.registerForConference = function () {
         $scope.loading = true;

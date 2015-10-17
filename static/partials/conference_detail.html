@@ -23,9 +23,9 @@
                     <label for="organizer">Organizer: </label>
                     <span id="organizer">{{conference.organizerDisplayName}}</span>
                 </div>
-                <p><a class="btn btn-primary" ng-hide="isUserAttending" ng-click="registerForConference()"
+                <p><a class="btn btn-primary" ng-hide="isUserAttending" ng-click="register_for_conference()"
                         ng-disabled="loading">Register</a></p>
-                <p><a class="btn btn-primary" ng-show="isUserAttending" ng-click="unregisterFromConference()"
+                <p><a class="btn btn-primary" ng-show="isUserAttending" ng-click="unregister_from_conference()"
                         ng-disabled="loading">Unregister</a></p>
             </div>
 
