@@ -24,7 +24,7 @@ from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
 from models import ConflictException, Session, SessionForm, SessionForms, \
-    TypeOfSession
+    TypeOfSession, Speaker, SpeakerForm
 from models import Profile
 from models import ProfileMiniForm
 from models import ProfileForm
@@ -56,7 +56,7 @@ SESS_DEFAULTS = {
     "typeOfSession": TypeOfSession.Not_Specified
 }
 
-DEFAULTS = {
+CONF_DEFAULTS = {
     "city": "Default City",
     "maxAttendees": 0,
     "seatsAvailable": 0,
@@ -78,10 +78,15 @@ FIELDS = {
     'MONTH': 'month',
     'MAX_ATTENDEES': 'maxAttendees',
 }
+SPEAK_POST_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeKey=messages.StringField(1, required=True)
+)
+
 SESS_BY_SPEAKER_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    websafeConferenceKey=messages.StringField(1, required=True),
-    date=messages.StringField(2, required=True)
+    websafeConferenceKey=messages.StringField(1),
+    speakerKey=messages.StringField(2, required=True)
 )
 
 SESS_BY_DATE_GET_REQUEST = endpoints.ResourceContainer(
@@ -129,83 +134,126 @@ class ConferenceApi(remote.Service):
 
     @endpoints.method(SESS_BY_SPEAKER_GET_REQUEST, SessionForms,
                       path="getConferenceSessionsBySpeaker/"
-                           "{websafeConferenceKey}/{speaker}",
+                           "{websafeConferenceKey}/{speakerKey}",
                       http_method="GET",
                       name="getConferenceSessionsBySpeaker")
     def getSessionsBySpeaker(self, request):
-        """ Given a speaker, return all sessions given by this particular
-        speaker, across all conferences """
+        """
+        Given a speakerKey, return all sessions given by this particular
+        speakerKey, across all conferences.
+        """
         # Make sure user is authenticated
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException("Authorization required.")
 
-        # Filter on speaker
-        sessions = Session.query( Session.speaker == request.speaker)
+        # Filter on speakerKey
+        sessions = Session.query(Session.speakerKey == request.speaker)
 
-        # DO the thing with the thing
+        # Return a SessionForm as Session
         return SessionForms(
             items=[self._copySessionToForm(s) for s in sessions]
         )
 
+    # - - - Speaker objects - - - - - - - - - - - - - - - - -
+    def _createSpeakerObject(self, request):
+        """ Creates a Speaker object """
+
+        # Make sure that the user is authed
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException("Authorization required.")
+
+        user_id = getUserId(user)
+
+        if not request.name:
+            raise endpoints.BadRequestException("Speaker 'name' required.")
+
+        # Copy SpeakerForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for
+                field in request.all_fields()}
+
+        # Generate Profile key based on user ID and Session
+        p_key = ndb.Key(Profile, user_id)
+        s_id = Session.allocate_ids(size=1, parent=p_key)[0]
+        s_key = ndb.Key(Session, s_id, parent=p_key)
+        data['key'] = s_key
+
+        # Create Speaker, send email to organizer confirming creation of
+        # Speaker & return modified SpeakerForm
+        Speaker(**data).put()
+        taskqueue.add(params={'email': user.email(),
+                              'conferenceInfo': repr(request)},
+                      url='/tasks/send_confirmation_email'
+                      )
+
+    @endpoints.method(SpeakerForm, SpeakerForm,
+                      path="createSpeakerObject",
+                      http_method="POST",
+                      name="createSpeakerObject")
+    def createSpeaker(self, request):
+        """  Create new speaker """
+        return self._createSpeakerObject(request)
+
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
     # - - - Session objects - - - - - - - - - - - - - - - - -
 
-
-    # @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForm,
-    #                   path="getConferenceSessionsByType/"
-    #                        "{websafeConferenceKey}/{typeOfSession}",
-    #                   http_method="GET",
-    #                   name="getConferenceSessionsByType")
-    # def getConferenceSessionsByType(self, request):
-    #     # make sure user is authed
-    #     user = endpoints.get_current_user()
-    #     if not user:
-    #         raise endpoints.UnauthorizedException("Authorization required.")
-    #
-    #     # Get the session's conference key
-    #     conf_key = Session.query(
-    #         ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)
-    #     )
-    #
-    #     sessions = conf_key.filter(
-    #         Session.typeOfSession == request.typeOfSession
-    #     )
-    #
-    #     return SessionForms(
-    #         items=[self._copySessionToForm(s) for s in sessions]
-    #     )
-
-    @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForms,
-                      path="getConferenceSessionsByDate/"
-                           "{websafeConferenceKey}/{date}",
+    @endpoints.method(SESS_BY_TYPE_GET_REQUEST, SessionForm,
+                      path="getConferenceSessionsByType/"
+                           "{websafeConferenceKey}/{typeOfSession}",
                       http_method="GET",
-                      name="getConferenceSessionsByDate")
-    def getConferenceSessionsByDate(self, request):
-        """ Given a conference, return all sessions of a specified type
-        (eg lecture, keynote, workshop) """
-        # Make sure user is authenticated
+                      name="getConferenceSessionsByType")
+    def getConferenceSessionsByType(self, request):
+        # make sure user is authed
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException("Authorization required.")
 
         # Get the session's conference key
-        try:
-            sessions = Session.query(
-                ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)
-            )
-        except Exception:
-            raise endpoints.BadRequestException(
-                "websafeConferenceKey is not valid"
-            )
-
-        # Convert date to date object
-        date = datetime.strptime(request.date[:10], "%Y-%m-%d").date()
-        # Filter sessions by date
-        sessions = sessions.filter(Session.date == date)
-        # Return a SessionForm as Session
-        return SessionForms(
-            items=[self._copySessionToForm(sess) for sess in sessions]
+        conf_key = Session.query(
+            ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)
         )
+
+        sessions = conf_key.filter(
+            Session.typeOfSession == request.typeOfSession
+        )
+
+        return SessionForms(
+            items=[self._copySessionToForm(s) for s in sessions]
+        )
+
+    # @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForms,
+    #                   path="getConferenceSessionsByDate/"
+    #                        "{websafeConferenceKey}/{date}",
+    #                   http_method="GET",
+    #                   name="getConferenceSessionsByDate")
+    # def getConferenceSessionsByDate(self, request):
+    #     """ Given a conference, return all sessions of a specified type
+    #     (eg lecture, keynote, workshop) """
+    #     # Make sure user is authenticated
+    #     user = endpoints.get_current_user()
+    #     if not user:
+    #         raise endpoints.UnauthorizedException("Authorization required.")
+    #
+    #     # Get the session's conference key
+    #     try:
+    #         sessions = Session.query(
+    #             ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)
+    #         )
+    #     except Exception:
+    #         raise endpoints.BadRequestException(
+    #             "websafeConferenceKey is not valid"
+    #         )
+    #
+    #     # Convert date to date object
+    #     date = datetime.strptime(request.date[:10], "%Y-%m-%d").date()
+    #     # Filter sessions by date
+    #     sessions = sessions.filter(Session.date == date)
+    #     # Return a SessionForm as Session
+    #     return SessionForms(
+    #         items=[self._copySessionToForm(sess) for sess in sessions]
+    #     )
 
     @endpoints.method(CONF_GET_REQUEST, SessionForms,
                       path="sessions/{websafeConferenceKey}",
@@ -368,10 +416,10 @@ class ConferenceApi(remote.Service):
         del data['organizerDisplayName']
 
         # add default values for those missing (both data model & outbound Message)
-        for df in DEFAULTS:
+        for df in CONF_DEFAULTS:
             if data[df] in (None, []):
-                data[df] = DEFAULTS[df]
-                setattr(request, df, DEFAULTS[df])
+                data[df] = CONF_DEFAULTS[df]
+                setattr(request, df, CONF_DEFAULTS[df])
 
         # convert dates from strings to Date objects; set month based on start_date
         if data['startDate']:

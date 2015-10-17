@@ -17,6 +17,57 @@ created/forked from conferences.py by wesc on 2014 may 24
 __author__ = 'wesc+api@google.com (Wesley Chun)'
 
 
+class Speaker(ndb.Model):
+    """ Speaker -- Speaker object """
+    name = ndb.StringProperty(required=True)
+
+
+class SpeakerForm(messages.Message):
+    """ SpeakerForm -- Speaker outbound form message """
+    name = messages.StringField(1)
+
+
+class SpeakerForms(messages.Message):
+    """ SpeakerForms -- multiple Speaker outbound form message """
+    items = messages.MessageField(SpeakerForm, 1, repeated=True)
+
+
+class Session(ndb.Model):
+    """ Session -- Session object """
+    name = ndb.StringProperty(required=True)
+    highlights = ndb.StringProperty()
+    speakerKey = ndb.StringProperty()
+    duration = ndb.IntegerProperty()
+    typeOfSession = ndb.StringProperty(default="Not_Specified")
+    date = ndb.DateProperty()
+    startTime = ndb.TimeProperty()
+    parentConference = ndb.StringProperty(required=True)
+
+
+class SessionForm(messages.Message):
+    """ SessionForm -- multiple Session outbound form message """
+    name = messages.StringField(1)
+    highlights = messages.StringField(2)
+    speakerKey = messages.StringField(3)
+    duration = messages.IntegerField(4)
+    typeOfSession = messages.EnumField('TypeOfSession', 5)
+    date = messages.StringField(6)  # DateTime field
+    startTime = messages.StringField(7)  # DateTime field
+    parentConference = messages.StringField(8)
+
+
+class TypeOfSession(messages.Enum):
+    """ TypeOfSession -- Session type enumeration value """
+    Not_Specified = 1
+    Workshop = 2
+    Lecture = 3
+
+
+class SessionForms(messages.Message):
+    """ SessionForms -- multiple Session outbound form message """
+    items = messages.MessageField(SessionForm, 1, repeated=True)
+
+
 class ConflictException(endpoints.ServiceException):
     """ConflictException -- exception mapped to HTTP 409 response"""
     http_status = httplib.CONFLICT
@@ -120,39 +171,3 @@ class ConferenceQueryForms(messages.Message):
     ConferenceQueryForms -- multiple ConferenceQueryForm inbound form message
     """
     filters = messages.MessageField(ConferenceQueryForm, 1, repeated=True)
-
-
-class Session(ndb.Model):
-    """ Session -- Session object """
-    name = ndb.StringProperty(required=True)
-    highlights = ndb.StringProperty()
-    speaker = ndb.StringProperty()
-    duration = ndb.IntegerProperty()
-    typeOfSession = ndb.StringProperty(default="Not_Specified")
-    date = ndb.DateProperty()
-    startTime = ndb.TimeProperty()
-    parentConference = ndb.StringProperty(required=True)
-
-
-class SessionForm(messages.Message):
-    """ SessionForm -- multiple Session outbound form message """
-    name = messages.StringField(1)
-    highlights = messages.StringField(2)
-    speaker = messages.StringField(3)
-    duration = messages.IntegerField(4)
-    typeOfSession = messages.EnumField('TypeOfSession', 5)
-    date = messages.StringField(6)  # DateTime field
-    startTime = messages.StringField(7)  # DateTime field
-    parentConference = messages.StringField(8)
-
-
-class TypeOfSession(messages.Enum):
-    """ TypeOfSession -- Session type enumeration value """
-    Not_Specified = 1
-    Workshop = 2
-    Lecture = 3
-
-
-class SessionForms(messages.Message):
-    """ SessionForms -- multiple Session outbound form message """
-    items = messages.MessageField(SessionForm, 1, repeated=True)
