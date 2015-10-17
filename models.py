@@ -45,7 +45,7 @@ class Session(ndb.Model):
 
 
 class SessionForm(messages.Message):
-    """ SessionForm -- multiple Session outbound form message """
+    """ SessionForm --  Session outbound form message """
     name = messages.StringField(1)
     highlights = messages.StringField(2)
     speakerKey = messages.StringField(3)

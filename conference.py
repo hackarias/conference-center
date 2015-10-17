@@ -24,7 +24,7 @@ from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
 from models import ConflictException, Session, SessionForm, SessionForms, \
-    TypeOfSession, Speaker, SpeakerForm
+    TypeOfSession, Speaker, SpeakerForm, SpeakerForms
 from models import Profile
 from models import ProfileMiniForm
 from models import ProfileForm
@@ -78,10 +78,6 @@ FIELDS = {
     'MONTH': 'month',
     'MAX_ATTENDEES': 'maxAttendees',
 }
-SPEAK_POST_REQUEST = endpoints.ResourceContainer(
-    message_types.VoidMessage,
-    websafeKey=messages.StringField(1, required=True)
-)
 
 SESS_BY_SPEAKER_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
@@ -164,7 +160,7 @@ class ConferenceApi(remote.Service):
             if hasattr(speaker, field.name):
                 setattr(sf, field.name, getattr(speaker, field.name))
             elif field.name == "websafeKey":
-                setattr(sf, field.name, speaker.key.urlsafe()
+                setattr(sf, field.name, speaker.key.urlsafe())
         sf.check_initialized()
         return sf
 
@@ -184,13 +180,14 @@ class ConferenceApi(remote.Service):
         data = {field.name: getattr(request, field.name) for field in
                 request.all_fields()}
 
-        # Generate key for Speaker
-        s_id = Speaker.allocate_ids(size=1)[0]
+        # Generate key for Speaker using Session and the Speaker ID
+        s_id = Session.allocate_ids(size=1)[0]
         s_key = ndb.Key(Speaker, s_id)
         data['key'] = s_key
 
         # Create Speaker
         Speaker(**data).put()
+        return request
 
     @endpoints.method(SpeakerForm, SpeakerForm,
                       path="createSpeaker",
