@@ -123,6 +123,62 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - Wishlist section - - - - - - - - - - - - - - - - - -
+def add_session_to_wishlist(self, request, reg=True):
+    """ adds the session to the user's list of session they are interested in
+    attending
+    """
+    # Make sure that the user is authenticated
+    user = endpoints.get_current_user()
+    if not user:
+        raise endpoints.UnauthorizedException("Authorization required.")
+    # Get the users profile
+    prof = self._get_profile_from_user()
+    # check if conf exists given websafeConfKey
+    # get session; check that it exists
+
+    try:
+        s_key = ndb.Key(urlsafe=request.websafeConferenceKey)
+    except Exception:
+        raise endpoints.BadRequestException(
+            "the websafeSessionKey given is not valid."
+        )
+
+    # Check if the session exists
+    session = s_key.get()
+    if not session:
+        raise endpoints.NotFoundException(
+            'No session found with key: {}').format(session)
+
+    conf = session.key.parent().get()
+    c_key = conf.key.urlsafe()
+    # Add to wishlist
+    if reg:
+        # Check if user already has this session in wishlist
+        if c_key in prof.sessionWishList:
+            raise ConflictException(
+                "You have already have this session in your wishlist"
+            )
+        # Go ahead and add it to the wishlist
+        # Add to wishlist
+        prof.sessionWishList.append(c_key)
+        return_value = True
+    # Remove session from wishlist
+    else:
+        # check if user already registered
+        if c_key in prof.sessionWishList:
+            # Remove session
+            prof.sessionWishList.remove(c_key)
+            return_value = True
+        else:
+            return_value = False
+
+    # Write changes back to the datastore & return
+    prof.put()
+    return BooleanMessage(data=return_value)
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - Speaker section - - - - - - - - - - - - - - - - - -
 def _copy_speaker_to_form(copy_speaker):
     """ Copy relevant fields from Speaker to SpeakerForm """
@@ -659,7 +715,8 @@ class ConferenceApi(remote.Service):
 
     @endpoints.method(CONF_POST_REQUEST, ConferenceForm,
                       path='conference/{websafeConferenceKey}',
-                      http_method='PUT', name='update_conference')
+                      http_method='PUT',
+                      name='updateConference')
     def update_conference(self, request):
         """Update conference w/provided fields & return w/updated info."""
         return self._update_conference_object(request)

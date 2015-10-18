@@ -51,8 +51,8 @@ class SessionForm(messages.Message):
     speakerKey = messages.StringField(3)
     duration = messages.IntegerField(4)
     typeOfSession = messages.EnumField('TypeOfSession', 5)
-    date = messages.StringField(6)  # DateTime field
-    startTime = messages.StringField(7)  # DateTime field
+    date = messages.StringField(6)  # DateTimeField()
+    startTime = messages.StringField(7)  # DateTimeField()
     parentConference = messages.StringField(8)
 
 
@@ -79,6 +79,7 @@ class Profile(ndb.Model):
     mainEmail = ndb.StringProperty()
     teeShirtSize = ndb.StringProperty(default='Not_Specified')
     conferenceKeysToAttend = ndb.StringProperty(repeated=True)
+    sessionWishList = ndb.StringProperty(repeated=True)
 
 
 class ProfileMiniForm(messages.Message):
@@ -93,6 +94,7 @@ class ProfileForm(messages.Message):
     mainEmail = messages.StringField(2)
     teeShirtSize = messages.EnumField('TeeShirtSize', 3)
     conferenceKeysToAttend = messages.StringField(4, repeated=True)
+    sessionWishList = messages.StringField(5, repeated=True)
 
 
 class StringMessage(messages.Message):
@@ -113,7 +115,7 @@ class Conference(ndb.Model):
     topics = ndb.StringProperty(repeated=True)
     city = ndb.StringProperty()
     startDate = ndb.DateProperty()
-    month = ndb.IntegerProperty()  # TODO: do we need for indexing like Java?
+    month = ndb.IntegerProperty()
     endDate = ndb.DateProperty()
     maxAttendees = ndb.IntegerProperty()
     seatsAvailable = ndb.IntegerProperty()
