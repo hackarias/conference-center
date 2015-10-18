@@ -124,7 +124,7 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - Wishlist section - - - - - - - - - - - - - - - - - -
-def add_session_to_wishlist(self, request, reg=True):
+def _add_session_to_wishlist(self, request, reg=True):
     """ adds the session to the user's list of session they are interested in
     attending
     """
@@ -176,6 +176,36 @@ def add_session_to_wishlist(self, request, reg=True):
     # Write changes back to the datastore & return
     prof.put()
     return BooleanMessage(data=return_value)
+
+
+@endpoints.method(message_types.VoidMessage, SessionForms,
+                  path='sessions/wishlist',
+                  http_method='GET',
+                  name='getSessionsToAttend')
+def get_sessions_in_wishlist(self):
+    """
+    Query for all the sessions in a conference that the user is interested in
+    """
+    # Get user Profile
+    prof = _get_profile_from_user()
+    c_keys = [ndb.Key(urlsafe=wsck) for wsck in
+              prof.sessionWishList]
+    sessions = ndb.get_multi(c_keys)
+
+    # Get organizers
+    organisers = [ndb.Key(Profile, sess.organizerUserId) for sess in
+                  sessions]
+    profiles = ndb.get_multi(organisers)
+
+    # Put display names in a dict for easier fetching
+    names = {}
+    for profile in profiles:
+        names[profile.key.id()] = profile.displayName
+
+    # Return set of ConferenceForm objects per Conference
+    return SessionForms(
+        items=[_copy_session_to_form(sess) for sess in sessions]
+    )
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
