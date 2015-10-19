@@ -204,7 +204,7 @@ def get_sessions_in_wishlist(self):
 
     # Return set of ConferenceForm objects per Conference
     return SessionForms(
-        items=[_copy_session_to_form(sess) for sess in sessions]
+        items=[self._copy_session_to_form(sess) for sess in sessions]
     )
 
 
@@ -562,6 +562,90 @@ def _get_query(request):
                scopes=[EMAIL_SCOPE])
 class ConferenceApi(remote.Service):
     """Conference API v0.1"""
+
+    # - - - - Wishlist section - - - - - - - - - - - - - - - - - -
+    def _add_session_to_wishlist(self, request, reg=True):
+        """ adds the session to the user's list of session they are interested in
+        attending
+        """
+        # Make sure that the user is authenticated
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException("Authorization required.")
+        # Get the users profile
+        prof = self._get_profile_from_user()
+        # check if conf exists given websafeConfKey
+        # get session; check that it exists
+
+        try:
+            s_key = ndb.Key(urlsafe=request.websafeConferenceKey)
+        except Exception:
+            raise endpoints.BadRequestException(
+                "the websafeSessionKey given is not valid."
+            )
+
+        # Check if the session exists
+        session = s_key.get()
+        if not session:
+            raise endpoints.NotFoundException(
+                'No session found with key: {}').format(session)
+
+        conf = session.key.parent().get()
+        c_key = conf.key.urlsafe()
+        # Add to wishlist
+        if reg:
+            # Check if user already has this session in wishlist
+            if c_key in prof.sessionWishList:
+                raise ConflictException(
+                    "You have already have this session in your wishlist"
+                )
+            # Go ahead and add it to the wishlist
+            # Add to wishlist
+            prof.sessionWishList.append(c_key)
+            return_value = True
+        # Remove session from wishlist
+        else:
+            # check if user already registered
+            if c_key in prof.sessionWishList:
+                # Remove session
+                prof.sessionWishList.remove(c_key)
+                return_value = True
+            else:
+                return_value = False
+
+        # Write changes back to the datastore & return
+        prof.put()
+        return BooleanMessage(data=return_value)
+
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+                      path='sessions/wishlist',
+                      http_method='GET',
+                      name='getSessionsInWishList')
+    def get_sessions_in_wishlist(self, request):
+        """
+        Query for all the sessions in a conference that the user is interested
+        in
+        """
+        # Get user Profile
+        prof = _get_profile_from_user()
+        c_keys = [ndb.Key(urlsafe=wsck) for wsck in
+                  prof.sessionWishList]
+        sessions = ndb.get_multi(c_keys)
+
+        # Get organizers
+        organisers = [ndb.Key(Profile, sess.organizerUserId) for sess in
+                      sessions]
+        profiles = ndb.get_multi(organisers)
+
+        # Put display names in a dict for easier fetching
+        names = {}
+        for profile in profiles:
+            names[profile.key.id()] = profile.displayName
+
+        # Return set of ConferenceForm objects per Conference
+        return SessionForms(
+            items=[self._copy_session_to_form(sess) for sess in sessions]
+        )
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # - - - Speaker objects - - - - - - - - - - - - - - - - - - -
