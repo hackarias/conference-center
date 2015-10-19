@@ -124,7 +124,7 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - Wishlist section - - - - - - - - - - - - - - - - - -
-def _add_session_to_wishlist(self, request, reg=True):
+def _add_session_to_wishlist(self, request, add=True):
     """ adds the session to the user's list of session they are interested in
     attending
     """
@@ -153,7 +153,7 @@ def _add_session_to_wishlist(self, request, reg=True):
     conf = session.key.parent().get()
     c_key = conf.key.urlsafe()
     # Add to wishlist
-    if reg:
+    if add:
         # Check if user already has this session in wishlist
         if c_key in prof.sessionWishList:
             raise ConflictException(
@@ -206,6 +206,30 @@ def get_sessions_in_wishlist(self):
     return SessionForms(
         items=[self._copy_session_to_form(sess) for sess in sessions]
     )
+
+
+@endpoints.method(SESS_POST_REQUEST, BooleanMessage,
+                  path="addSessionToWishList/{websafeSessionKey}",
+                  http_method="POST",
+                  name="addSessionToWishList")
+def add_session_to_wishlist(self, request):
+    """
+    adds the session to the user's list of sessions they are interested in
+    attending
+    """
+    return self._add_session_to_wishlist(request)
+
+
+@endpoints.method(SESS_POST_REQUEST, BooleanMessage,
+                  path="removeSessionFromWishList/{websafeSessionKey}",
+                  http_method="POST",
+                  name="removeSessionFromWishList")
+def remove_session_from_wishlist(self, request):
+    """
+    Removes the session from the user's list of session they are interest in
+    attending
+    """
+    return self._add_session_to_wishlist(request, add=False)
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
