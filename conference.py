@@ -178,60 +178,6 @@ def _add_session_to_wishlist(self, request, add=True):
     return BooleanMessage(data=return_value)
 
 
-@endpoints.method(message_types.VoidMessage, SessionForms,
-                  path='sessions/wishlist',
-                  http_method='GET',
-                  name='getSessionsToAttend')
-def get_sessions_in_wishlist(self):
-    """
-    Query for all the sessions in a conference that the user is interested in
-    """
-    # Get user Profile
-    prof = _get_profile_from_user()
-    c_keys = [ndb.Key(urlsafe=wsck) for wsck in
-              prof.sessionWishList]
-    sessions = ndb.get_multi(c_keys)
-
-    # Get organizers
-    organisers = [ndb.Key(Profile, sess.organizerUserId) for sess in
-                  sessions]
-    profiles = ndb.get_multi(organisers)
-
-    # Put display names in a dict for easier fetching
-    names = {}
-    for profile in profiles:
-        names[profile.key.id()] = profile.displayName
-
-    # Return set of ConferenceForm objects per Conference
-    return SessionForms(
-        items=[self._copy_session_to_form(sess) for sess in sessions]
-    )
-
-
-@endpoints.method(SESS_POST_REQUEST, BooleanMessage,
-                  path="addSessionToWishList/{websafeSessionKey}",
-                  http_method="POST",
-                  name="addSessionToWishList")
-def add_session_to_wishlist(self, request):
-    """
-    adds the session to the user's list of sessions they are interested in
-    attending
-    """
-    return self._add_session_to_wishlist(request)
-
-
-@endpoints.method(SESS_POST_REQUEST, BooleanMessage,
-                  path="removeSessionFromWishList/{websafeSessionKey}",
-                  http_method="POST",
-                  name="removeSessionFromWishList")
-def remove_session_from_wishlist(self, request):
-    """
-    Removes the session from the user's list of session they are interest in
-    attending
-    """
-    return self._add_session_to_wishlist(request, add=False)
-
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - Speaker section - - - - - - - - - - - - - - - - - -
 def _copy_speaker_to_form(copy_speaker):
@@ -588,7 +534,61 @@ class ConferenceApi(remote.Service):
     """Conference API v0.1"""
 
     # - - - - Wishlist section - - - - - - - - - - - - - - - - - -
+
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+                      path='sessions/wishlist',
+                      http_method='GET',
+                      name='getSessionsToAttend')
+    def get_sessions_in_wishlist(self):
+        """
+        Query for all the sessions in a conference that the user is interested
+        in
+        """
+        # Get user Profile
+        prof = _get_profile_from_user()
+        c_keys = [ndb.Key(urlsafe=wsck) for wsck in
+                  prof.sessionWishList]
+        sessions = ndb.get_multi(c_keys)
+
+        # Get organizers
+        organisers = [ndb.Key(Profile, sess.organizerUserId) for sess in
+                      sessions]
+        profiles = ndb.get_multi(organisers)
+
+        # Put display names in a dict for easier fetching
+        names = {}
+        for profile in profiles:
+            names[profile.key.id()] = profile.displayName
+
+        # Return set of ConferenceForm objects per Conference
+        return SessionForms(
+            items=[self._copy_session_to_form(sess) for sess in sessions]
+        )
+
+    @endpoints.method(SESS_POST_REQUEST, BooleanMessage,
+                      path="addSessionToWishList/{websafeKey}",
+                      http_method="POST",
+                      name="addSessionToWishList")
+    def add_session_to_wishlist(self, request):
+        """
+        adds the session to the user's list of sessions they are interested in
+        attending
+        """
+        return self._add_session_to_wishlist(request)
+
+    @endpoints.method(SESS_POST_REQUEST, BooleanMessage,
+                      path="removeSessionFromWishList/{websafeKey}",
+                      http_method="DELETE",
+                      name="removeSessionFromWishList")
+    def remove_session_from_wishlist(self, request):
+        """
+        Removes the session from the user's list of session they are interest
+        in attending
+        """
+        return self._add_session_to_wishlist(request)
+
     def _add_session_to_wishlist(self, request, reg=True):
+
         """ adds the session to the user's list of session they are interested in
         attending
         """
