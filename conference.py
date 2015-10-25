@@ -534,8 +534,7 @@ class ConferenceApi(remote.Service):
         """
         # Get user Profile
         prof = self._get_profile_from_user()
-        c_keys = [ndb.Key(urlsafe=wsck) for wsck in
-                  prof.sessionWishList]
+        c_keys = [ndb.Key(urlsafe=wsck) for wsck in prof.sessionWishList]
         sessions = ndb.get_multi(c_keys)
 
         # Get organizers
@@ -718,38 +717,6 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=[self._copy_session_to_form(sess) for sess in sessions]
         )
-
-    # @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForms,
-    #                   path="getConferenceSessionsByDate/"
-    #                        "{websafeConferenceKey}/{date}",
-    #                   http_method="GET",
-    #                   name="getConferenceSessionsByDate")
-    # def getConferenceSessionsByDate(self, request):
-    #     """ Given a conference, return all sessions of a specified type
-    #     (eg lecture, keynote, workshop) """
-    #     # Make sure user is authenticated
-    #     user = endpoints.get_current_user()
-    #     if not user:
-    #         raise endpoints.UnauthorizedException("Authorization required.")
-    #
-    #     # Get the session's conference key
-    #     try:
-    #         sessions = Session.query(
-    #             ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)
-    #         )
-    #     except Exception:
-    #         raise endpoints.BadRequestException(
-    #             "websafeConferenceKey is not valid"
-    #         )
-    #
-    #     # Convert date to date object
-    #     date = datetime.strptime(request.date[:10], "%Y-%m-%d").date()
-    #     # Filter sessions by date
-    #     sessions = sessions.filter(Session.date == date)
-    #     # Return a SessionForm as Session
-    #     return SessionForms(
-    #         items=[self._copy_session_to_form(sess) for sess in sessions]
-    #     )
 
     @endpoints.method(CONF_GET_REQUEST, SessionForms,
                       path="sessions/{websafeConferenceKey}",
