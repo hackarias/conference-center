@@ -131,11 +131,32 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
 class ConferenceApi(remote.Service):
     """Conference API v0.1"""
 
+    @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForms,
+                      name="getConferenceByDate",
+                      path="getConferenceByDate/{websafeConferenceKey}/{date}",
+                      http_method="GET")
+    def get_sessions_by_date(self, request):
+        """ Return all sessions by date. """
+        # Make sure that the user is authenticated
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException("Authorization required.")
+
+        # Get conference key and filter on sessions
+        sessions = Session.query(
+            ancestor=ndb.Key(urlsafe=request.websafeConferenceKey))
+        date = datetime.strptime(request.date[:10], "%Y-%m-%d").date()
+        # Filter by date
+        sessions = sessions.filter(Session.date == date)
+        # Return SessionForm as Session
+        return SessionForms(
+            items=[self._copy_session_to_form(s) for s in sessions])
+
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # - - - - Wishlist section - - - - - - - - - - - - - - - - - -
     def _add_session_to_wishlist(self, request, add=True):
-        """ adds the session to the user's list of session they are interested in
-        attending
+        """ adds the session to the user's list of session they are interested
+         in attending
         """
         # Make sure that the user is authenticated
         user = endpoints.get_current_user()
@@ -742,7 +763,8 @@ class ConferenceApi(remote.Service):
                 setattr(conf, field.name, data)
         conf.put()
         prof = ndb.Key(Profile, user_id).get()
-        return self._copy_conference_to_form(conf, getattr(prof, 'displayName'))
+        return self._copy_conference_to_form(conf,
+                                             getattr(prof, 'displayName'))
 
     @endpoints.method(ConferenceForm, ConferenceForm,
                       path='conference',
@@ -774,7 +796,8 @@ class ConferenceApi(remote.Service):
                 request.websafeConferenceKey)
         prof = conf.key.parent().get()
         # return ConferenceForm
-        return self._copy_conference_to_form(conf, getattr(prof, 'displayName'))
+        return self._copy_conference_to_form(conf,
+                                             getattr(prof, 'displayName'))
 
     @endpoints.method(message_types.VoidMessage, ConferenceForms,
                       path='getConferencesCreated',
@@ -794,7 +817,8 @@ class ConferenceApi(remote.Service):
         # return set of ConferenceForm objects per Conference
         return ConferenceForms(
             items=[
-                self._copy_conference_to_form(conf, getattr(prof, 'displayName'))
+                self._copy_conference_to_form(conf,
+                                              getattr(prof, 'displayName'))
                 for conf in conferences]
         )
 
@@ -820,7 +844,8 @@ class ConferenceApi(remote.Service):
         # return individual ConferenceForm object per Conference
         return ConferenceForms(
             items=[
-                self._copy_conference_to_form(conf, names[conf.organizerUserId])
+                self._copy_conference_to_form(conf,
+                                              names[conf.organizerUserId])
                 for conf in conferences]
         )
 
