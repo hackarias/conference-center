@@ -1,27 +1,12 @@
 #!/usr/bin/env python
-"""
-conference.py -- Udacity conference server-side Python App Engine API;
-    uses Google Cloud Endpoints
-
-$Id: conference.py,v 1.25 2014/05/24 23:42:19 wesc Exp wesc $
-
-created by wesc on 2014 apr 21
-
-"""
-__author__ = 'wesc+api@google.com (Wesley Chun)'
 from datetime import datetime
-
 import endpoints
-
 from protorpc import messages
 from protorpc import message_types
 from protorpc import remote
-
 from google.appengine.api import memcache
 from google.appengine.api import taskqueue
-
 from google.appengine.ext import ndb
-
 from models import ConflictException
 from models import Session
 from models import SessionForm
@@ -39,13 +24,23 @@ from models import ConferenceForm
 from models import ConferenceForms
 from models import ConferenceQueryForms
 from models import TeeShirtSize
-
 from settings import WEB_CLIENT_ID
 from settings import ANDROID_CLIENT_ID
 from settings import IOS_CLIENT_ID
 from settings import ANDROID_AUDIENCE
-
 from utils import getUserId
+
+__author__ = 'wesc+api@google.com (Wesley Chun)'
+
+"""
+conference.py -- Udacity conference server-side Python App Engine API;
+    uses Google Cloud Endpoints
+
+$Id: conference.py,v 1.25 2014/05/24 23:42:19 wesc Exp wesc $
+
+created by wesc on 2014 apr 21
+
+"""
 
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
@@ -103,22 +98,22 @@ SESS_BY_TYPE_GET_REQUEST = endpoints.ResourceContainer(
 
 SESS_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    websafeKey=messages.StringField(1),
+    websafeConferenceKey=messages.StringField(1)
 )
 
 SESS_POST_REQUEST = endpoints.ResourceContainer(
-    message_types.VoidMessage,
-    websafeKey=messages.StringField(1),
+    SessionForm,
+    websafeConferenceKey=messages.StringField(1)
 )
 
 CONF_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    websafeConferenceKey=messages.StringField(1),
+    websafeConferenceKey=messages.StringField(1)
 )
 
 CONF_POST_REQUEST = endpoints.ResourceContainer(
     ConferenceForm,
-    websafeConferenceKey=messages.StringField(1),
+    websafeConferenceKey=messages.StringField(1)
 )
 
 
@@ -132,28 +127,27 @@ class ConferenceApi(remote.Service):
     """Conference API v0.1"""
 
     @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForms,
-                      name="getConferenceByDate",
-                      path="getConferenceByDate/{websafeConferenceKey}/{date}",
+                      path="getSessionsFromConference/{websafeConferenceKey}",
+                      name="getSessionsFromConference",
                       http_method="GET")
-    def get_sessions_by_date(self, request):
-        """ Return all sessions by date. """
+    def get_sessions_from_conference(self, request):
+        """ Returns all Speakers from given Conference. """
         # Make sure that the user is authenticated
         user = endpoints.get_current_user()
         if not user:
-            raise endpoints.UnauthorizedException("Authorization required.")
+            raise endpoints.UnauthorizedException("Authentication required.")
+        # Get the conference for provided websafeConferenceKey
+        try:
+            conference = ndb.Key(urlsafe=request.websafeConferenceKey)
+        except Exception:
+            raise endpoints.BadRequestException(
+                "The websafeConferenceKey provided is not valid")
+        # Filters on all the sessions for this Conference
+        sessions = conference.filter(ancestor=conference)
 
-        # Get conference key and filter on sessions
-        sessions = Session.query(
-            ancestor=ndb.Key(urlsafe=request.websafeConferenceKey))
-        date = datetime.strptime(request.date[:10], "%Y-%m-%d").date()
-        # Filter by date
-        sessions = sessions.filter(Session.date == date)
-        # Return SessionForm as Session
         return SessionForms(
             items=[self._copy_session_to_form(s) for s in sessions])
 
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    # - - - - Wishlist section - - - - - - - - - - - - - - - - - -
     def _add_session_to_wishlist(self, request, add=True):
         """ adds the session to the user's list of session they are interested
          in attending
@@ -208,17 +202,40 @@ class ConferenceApi(remote.Service):
         return BooleanMessage(data=return_value)
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    # - - - - Speaker section - - - - - - - - - - - - - - - - - -
+    # - - - - Wishlist section - - - - - - - - - - - - - - - - - -
     def _copy_speaker_to_form(self, copy_speaker):
         """ Copy relevant fields from Speaker to SpeakerForm """
         sf = SpeakerForm()
         for field in sf.all_fields():
             if hasattr(copy_speaker, field.name):
                 setattr(sf, field.name, getattr(copy_speaker, field.name))
-            elif field.name == "websafeKey":
+            elif field.name == "websafeConferenceKey":
                 setattr(sf, field.name, copy_speaker.key.urlsafe())
         sf.check_initialized()
         return sf
+
+    @endpoints.method(SESS_BY_DATE_GET_REQUEST, SessionForms,
+                      path="getSessionsByDate/{websafeConferenceKey}/{date}",
+                      http_method="GET",
+                      name="getSessionsByDate")
+    def get_sessions_by_date(self, request):
+        """ Return all sessions by date. """
+        # Conference Make sure that the user is authenticated
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException("Authorization required.")
+
+        # Get conference key and filter on sessions
+        sessions = Session.query(
+            ancestor=ndb.Key(urlsafe=request.websafeConferenceKey))
+        date = datetime.strptime(request.date[:10], "%Y-%m-%d").date()
+        # Filter by date
+        sessions = sessions.filter(Session.date == date)
+        # Return SessionForm as Session
+        return SessionForms(
+            items=[self._copy_session_to_form(s) for s in sessions])
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # - - - - Speaker section - - - - - - - - - - - - - - - - - -
 
     def _create_speaker_object(self, request):
         """ Creates a Speaker object """
@@ -356,7 +373,7 @@ class ConferenceApi(remote.Service):
                     setattr(cf, field.name, str(getattr(conf, field.name)))
                 else:
                     setattr(cf, field.name, getattr(conf, field.name))
-            elif field.name == "websafeKey":
+            elif field.name == "websafeConferenceKey":
                 setattr(cf, field.name, conf.key.urlsafe())
         if display_name:
             setattr(cf, 'organizerDisplayName', display_name)
@@ -380,7 +397,7 @@ class ConferenceApi(remote.Service):
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in
                 request.all_fields()}
-        del data['websafeKey']
+        del data['websafeConferenceKey']
         del data['organizerDisplayName']
 
         # Add default values for those missing
@@ -574,7 +591,7 @@ class ConferenceApi(remote.Service):
         )
 
     @endpoints.method(SESS_POST_REQUEST, BooleanMessage,
-                      path="addSessionToWishList/{websafeKey}",
+                      path="addSessionToWishList/{websafeConferenceKey}",
                       http_method="POST",
                       name="addSessionToWishList")
     def add_session_to_wishlist(self, request):
@@ -585,7 +602,7 @@ class ConferenceApi(remote.Service):
         return self._add_session_to_wishlist(request)
 
     @endpoints.method(SESS_POST_REQUEST, BooleanMessage,
-                      path="removeSessionFromWishList/{websafeKey}",
+                      path="removeSessionFromWishList/{websafeConferenceKey}",
                       http_method="DELETE",
                       name="removeSessionFromWishList")
     def remove_session_from_wishlist(self, request):
@@ -692,6 +709,7 @@ class ConferenceApi(remote.Service):
     def get_conference_sessions(self, request):
         """ Given a conference, return all sessions """
         user = endpoints.get_current_user()
+        print user
         # Auth the user
         if not user:
             raise endpoints.UnauthorizedException("Authorization required")
@@ -704,6 +722,7 @@ class ConferenceApi(remote.Service):
                 "websafeConferenceKey is not valid."
             )
         conf = c_key.get()
+        print conf
         # Check if the conference exists
         if not conf:
             raise endpoints.NotFoundException(
@@ -712,6 +731,7 @@ class ConferenceApi(remote.Service):
             )
         # Get the conferences sessions
         sessions = Session.query(ancestor=c_key)
+        print sessions
         # Return a SessionForm for a Session
         return SessionForms(
             items=[self._copy_session_to_form(s) for s in sessions]
@@ -957,7 +977,7 @@ class ConferenceApi(remote.Service):
                       path='conferences/attending',
                       http_method='GET',
                       name='getConferencesToAttend')
-    def get_conferences_to_attend(self):
+    def get_conferences_to_attend(self, request):
         """Get list of conferences that user has registered for."""
         prof = self._get_profile_from_user()  # get user Profile
         conf_keys = [ndb.Key(urlsafe=wsck) for wsck in
@@ -965,9 +985,9 @@ class ConferenceApi(remote.Service):
         conferences = ndb.get_multi(conf_keys)
 
         # get organizers
-        organisers = [ndb.Key(Profile, conf.organizerUserId) for conf in
+        organizers = [ndb.Key(Profile, conf.organizerUserId) for conf in
                       conferences]
-        profiles = ndb.get_multi(organisers)
+        profiles = ndb.get_multi(organizers)
 
         # put display names in a dict for easier fetching
         names = {}

@@ -61,6 +61,7 @@ class TypeOfSession(messages.Enum):
     Not_Specified = 1
     Workshop = 2
     Lecture = 3
+    Talk = 4
 
 
 class SessionForms(messages.Message):
