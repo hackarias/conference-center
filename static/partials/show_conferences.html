@@ -57,7 +57,7 @@
                     </thead>
                     <tbody>
                     <tr ng-repeat="conference in conferences | startFrom: pagination.currentPage * pagination.pageSize | limitTo: pagination.pageSize">
-                        <td><a href="#/conference/detail/{{conference.websafeKey}}">Details</a></td>
+                        <td><a href="#/conference/detail/{{conference.websafeConferenceKey}}">Details</a></td>
                         <td>{{conference.name}}</td>
                         <td>{{conference.city}}</td>
                         <td>{{conference.startDate | date:'dd-MMMM-yyyy'}}</td>

@@ -209,7 +209,7 @@ class ConferenceApi(remote.Service):
         for field in sf.all_fields():
             if hasattr(copy_speaker, field.name):
                 setattr(sf, field.name, getattr(copy_speaker, field.name))
-            elif field.name == "websafeConferenceKey":
+            elif field.name == "websafeKey":
                 setattr(sf, field.name, copy_speaker.key.urlsafe())
         sf.check_initialized()
         return sf
@@ -373,7 +373,7 @@ class ConferenceApi(remote.Service):
                     setattr(cf, field.name, str(getattr(conf, field.name)))
                 else:
                     setattr(cf, field.name, getattr(conf, field.name))
-            elif field.name == "websafeConferenceKey":
+            elif field.name == "websafeKey":
                 setattr(cf, field.name, conf.key.urlsafe())
         if display_name:
             setattr(cf, 'organizerDisplayName', display_name)
@@ -397,7 +397,7 @@ class ConferenceApi(remote.Service):
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in
                 request.all_fields()}
-        del data['websafeConferenceKey']
+        del data['websafeKey']
         del data['organizerDisplayName']
 
         # Add default values for those missing
@@ -479,12 +479,11 @@ class ConferenceApi(remote.Service):
     # - - - - Profile section - - - - - - - - - - - - - - - - - -
     def _copy_profile_to_form(self, prof):
         """Copy relevant fields from Profile to ProfileForm."""
-        # copy relevant fields from Profile to ProfileForm
         pf = ProfileForm()
         for field in pf.all_fields():
             if hasattr(prof, field.name):
                 # convert t-shirt string to Enum; just copy others
-                if field.name == 'tee_shirt_size':
+                if field.name == 'teeShirtSize':
                     setattr(pf, field.name,
                             getattr(TeeShirtSize, getattr(prof, field.name)))
                 else:
@@ -524,21 +523,21 @@ class ConferenceApi(remote.Service):
 
         # if save_profile(), process user-modifiable fields
         if save_request:
-            for field in ('displayName', 'tee_shirt_size'):
+            for field in ('displayName', 'teeShirtSize'):
                 if hasattr(save_request, field):
                     val = getattr(save_request, field)
                     if val:
                         setattr(prof, field, str(val))
-                        # if field == 'tee_shirt_size':
-                        #    setattr(prof, field, str(val).upper())
-                        # else:
-                        #    setattr(prof, field, val)
-                        prof.put()
+                        if field == 'teeShirtSize':
+                           setattr(prof, field, str(val).upper())
+                        else:
+                           setattr(prof, field, val)
+                    prof.put()
 
         # return ProfileForm
         return self._copy_profile_to_form(prof)
 
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # - - - - Query section - - - - - - - - - - - - - - - - - -
     def _get_query(self, request):
         """Return formatted query from the submitted filters."""
@@ -561,34 +560,34 @@ class ConferenceApi(remote.Service):
 
     # - - - - Wishlist section - - - - - - - - - - - - - - - - - -
 
-    @endpoints.method(message_types.VoidMessage, SessionForms,
-                      path='sessions/wishlist',
-                      http_method='GET',
-                      name='getSessionsToAttend')
-    def get_sessions_in_wishlist(self):
-        """
-        Query for all the sessions in a conference that the user is interested
-        in
-        """
-        # Get user Profile
-        prof = self._get_profile_from_user()
-        c_keys = [ndb.Key(urlsafe=wsck) for wsck in prof.sessionWishList]
-        sessions = ndb.get_multi(c_keys)
-
-        # Get organizers
-        organisers = [ndb.Key(Profile, sess.organizerUserId) for sess in
-                      sessions]
-        profiles = ndb.get_multi(organisers)
-
-        # Put display names in a dict for easier fetching
-        names = {}
-        for profile in profiles:
-            names[profile.key.id()] = profile.displayName
-
-        # Return set of ConferenceForm objects per Conference
-        return SessionForms(
-            items=[self._copy_session_to_form(sess) for sess in sessions]
-        )
+    # @endpoints.method(message_types.VoidMessage, SessionForms,
+    #                   path='sessions/wishlist',
+    #                   http_method='GET',
+    #                   name='getSessionsToAttend')
+    # def get_sessions_to_attend(self, request):
+    #     """
+    #     Query for all the sessions in a conference that the user is interested
+    #     in
+    #     """
+    #     # Get user Profile
+    #     prof = self._get_profile_from_user()
+    #     c_keys = [ndb.Key(urlsafe=wsck) for wsck in prof.sessionWishList]
+    #     sessions = ndb.get_multi(c_keys)
+    #
+    #     # Get organizers
+    #     organisers = [ndb.Key(Profile, sess.organizerUserId) for sess in
+    #                   sessions]
+    #     profiles = ndb.get_multi(organisers)
+    #
+    #     # Put display names in a dict for easier fetching
+    #     names = {}
+    #     for profile in profiles:
+    #         names[profile.key.id()] = profile.displayName
+    #
+    #     # Return set of ConferenceForm objects per Conference
+    #     return SessionForms(
+    #         items=[self._copy_session_to_form(sess) for sess in sessions]
+    #     )
 
     @endpoints.method(SESS_POST_REQUEST, BooleanMessage,
                       path="addSessionToWishList/{websafeConferenceKey}",
@@ -816,6 +815,7 @@ class ConferenceApi(remote.Service):
                 request.websafeConferenceKey)
         prof = conf.key.parent().get()
         # return ConferenceForm
+        print prof
         return self._copy_conference_to_form(conf,
                                              getattr(prof, 'displayName'))
 
@@ -876,7 +876,7 @@ class ConferenceApi(remote.Service):
                       path='profile',
                       http_method='GET',
                       name='getProfile')
-    def get_profile(self):
+    def get_profile(self, request):
         """Return user profile."""
         return self._do_profile()
 
