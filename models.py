@@ -39,7 +39,7 @@ class Session(ndb.Model):
     speakerKey = ndb.StringProperty()
     duration = ndb.IntegerProperty()
     typeOfSession = ndb.StringProperty(default="Not_Specified")
-    date = ndb.DateProperty()
+    date = ndb.DateProperty(required=True)
     startTime = ndb.TimeProperty()
     parentConference = ndb.StringProperty(required=True)
 
@@ -57,7 +57,7 @@ class SessionForm(messages.Message):
 
 
 class TypeOfSession(messages.Enum):
-    """ TypeOfSession -- Session type enumeration value """
+    """ TypeOfSession -- Session type enumeration values """
     Not_Specified = 1
     Workshop = 2
     Lecture = 3
@@ -96,8 +96,6 @@ class ProfileForm(messages.Message):
     mainEmail = messages.StringField(2)
     teeShirtSize = messages.EnumField('TeeShirtSize', 3)
     conferenceKeysToAttend = messages.StringField(4, repeated=True)
-    sessionWishList = messages.StringField(5, repeated=True)
-    organizerUserId = messages.StringField(6)
 
 
 class StringMessage(messages.Message):
