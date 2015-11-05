@@ -83,8 +83,7 @@ WISHLIST_POST_REQUEST = endpoints.ResourceContainer(
 
 SESS_BY_SPEAKER_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    websafeConferenceKey=messages.StringField(1),
-    speakerKey=messages.StringField(2, required=True))
+    speakerKey=messages.StringField(1, required=True))
 
 SESS_BY_DATE_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
@@ -584,7 +583,7 @@ class ConferenceApi(remote.Service):
     @endpoints.method(SESS_BY_SPEAKER_GET_REQUEST,
                       SessionForms,
                       path="getSessionsBySpeaker/"
-                           "{websafeConferenceKey}/{speakerKey}",
+                           "{speakerKey}",
                       http_method="GET",
                       name="getSessionsBySpeaker")
     def get_sessions_by_speaker(self, request):
