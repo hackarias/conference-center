@@ -44,7 +44,9 @@ created by wesc on 2014 apr 21
 
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
+MEMCACHE_FEATUREDSPEAKER_KEY = "FEATURED SPEAKER"
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
+# Announcement too?
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -638,7 +640,7 @@ class ConferenceApi(remote.Service):
     @endpoints.method(SESS_BY_SPEAKER_GET_REQUEST,
                       SessionForms,
                       path="getSessionsBySpeaker/"
-                      "{speakerKey}",
+                           "{speakerKey}",
                       http_method="GET",
                       name="getSessionsBySpeaker")
     def get_sessions_by_speaker(self, request):
@@ -659,7 +661,7 @@ class ConferenceApi(remote.Service):
     @endpoints.method(SESS_BY_TYPE_GET_REQUEST,
                       SessionForms,
                       path="getSessionsByType/"
-                      "{websafeConferenceKey}/{typeOfSession}",
+                           "{websafeConferenceKey}/{typeOfSession}",
                       http_method="GET",
                       name="getSessionsByType")
     def get_conference_sessions_by_type(self, request):
@@ -825,7 +827,7 @@ class ConferenceApi(remote.Service):
         return ConferenceForms(items=[
             self._copy_conference_to_form(conf, getattr(
                 prof, 'displayName')) for conf in conferences
-        ])
+            ])
 
     @endpoints.method(ConferenceQueryForms,
                       ConferenceForms,
