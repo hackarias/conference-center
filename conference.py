@@ -279,7 +279,7 @@ class ConferenceApi(remote.Service):
     def _create_speaker_object(self, request):
         """ Creates a Speaker object """
 
-        # Make sure that the user is authorized
+        # Make sure that the user is authenticated
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException("Authorization required.")
@@ -450,7 +450,7 @@ class ConferenceApi(remote.Service):
                       http_method='GET',
                       name='getConference')
     def get_conference(self, request):
-        """Return requested conference by websafeConferenceKey)."""
+        """Return requested conference by websafeConferenceKey."""
         # get Conference object from request; bail if not found
         conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
         if not conf:
@@ -469,7 +469,7 @@ class ConferenceApi(remote.Service):
                       name='getConferenceCreated')
     def get_conferences_created(self, request):
         """Return conferences created by user."""
-        # make sure user is authorized
+        # Make sure user is authenticated
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
@@ -572,7 +572,7 @@ class ConferenceApi(remote.Service):
                       name="getSessionsByDate")
     def get_sessions_by_date(self, request):
         """ Return all sessions by date. """
-        # Conference Make sure that the user is authenticated
+        # Make sure that the user is authenticated
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException("Authorization required.")
@@ -794,7 +794,7 @@ class ConferenceApi(remote.Service):
         """
         Return user Profile from datastore, creating new one if non-existent.
         """
-        # Make sure user is authorized
+        # Make sure user is authenticated
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
