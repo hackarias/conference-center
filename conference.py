@@ -464,9 +464,9 @@ class ConferenceApi(remote.Service):
 
     @endpoints.method(message_types.VoidMessage,
                       ConferenceForms,
-                      path='getConferencesCreated/{websafeConferenceKey}',
+                      path='getConferencesCreated',
                       http_method='POST',
-                      name='getConferenceCreated')
+                      name='getConferencesCreated')
     def get_conferences_created(self, request):
         """Return conferences created by user."""
         # Make sure user is authenticated
