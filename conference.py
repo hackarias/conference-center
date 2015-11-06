@@ -46,6 +46,7 @@ EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_FEATUREDSPEAKER_KEY = "FEATURED SPEAKER"
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
+FEATURED_SPEAKER_ANNOUNCEMENT = ""
 # Announcement too?
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
@@ -314,7 +315,6 @@ class ConferenceApi(remote.Service):
             raise endpoints.BadRequestException("Parent conference is invalid")
 
         conference = c_key.get()
-
         # Check that the current user is the same who created the conference
         if user_id != conference.organizerUserId:
             raise endpoints.ForbiddenException(
@@ -331,24 +331,20 @@ class ConferenceApi(remote.Service):
         # Copy SessionForm/ProtoRPC Message into dict.
         data = {field.name: getattr(request, field.name)
                 for field in request.all_fields()}
-
         # Add default values for those missing
         # (both data model & outbound Message)
         for df in SESS_DEFAULTS:
             if data[df] in (None, []):
                 data[df] = SESS_DEFAULTS[df]
                 setattr(request, df, SESS_DEFAULTS[df])
-
         # Convert dates from strings to Date objects
         if data['date']:
             data['date'] = (datetime.strptime(data['date'][:10],
                                               "%Y-%m-%d").date())
-
         # Convert startTime to Time object from string
         if data['startTime']:
             data['startTime'] = datetime.strptime(data['startTime'][:5],
                                                   "%H:%M").time()
-
         # Convert typOfSession to string
         if data['typeOfSession']:
             data['typeOfSession'] = str(data['typeOfSession'])
@@ -1023,6 +1019,45 @@ class ConferenceApi(remote.Service):
 
         return ConferenceForms(
             items=[self._copy_conference_to_form(conf, "") for conf in q])
+
+    # -------- featured speakers -----------
+    @staticmethod
+    def _cache_featured_speaker(websafeConferenceKey, websafeSpeakerKey):
+        """Create Featured Speaker & assign to memcache; used by
+        memcache cron job & putAnnouncement().
+        """
+        conf_key = ndb.Key(urlsafe=websafeConferenceKey)
+        conf = conf_key.get()
+        speaker_key = ndb.Key(urlsafe=websafeSpeakerKey)
+        speaker = speaker_key.get()
+
+        session = Session.query(ancestor=conf_key).filter(
+            Session.speakerKey == speaker_key)
+
+        if session.count() > 1:
+            speakr = speaker_key.get()
+            conference = conf_key.get()
+            sess_names = ", ".join([x.name for x in session])
+            if speaker:
+                announcement = FEATURED_SPEAKER_ANNOUNCEMENT + """
+                Speaker: {0}\n
+                Conference{1}\n
+                Session{2}""".format(speakr.name,
+                                     conference.name,
+                                     sess_names)
+                memcache.set(MEMCACHE_FEATUREDSPEAKER_KEY, announcement)
+            else:
+                announcement = "empty"
+                memcache.delete(MEMCACHE_FEATUREDSPEAKER_KEY)
+
+    @endpoints.method(message_types.VoidMessage, StringMessage,
+                      path="featuredSpeakerAnnouncement",
+                      http_method="GET",
+                      name="getFeaturedSpeaker")
+    def get_featured_speaker(self, request):
+        """ Returns featured speaker announcement from memcache """
+        return StringMessage(
+            data=memcache.get(MEMCACHE_FEATUREDSPEAKER_KEY) or "")
 
 
 api = endpoints.api_server([ConferenceApi])  # register API
