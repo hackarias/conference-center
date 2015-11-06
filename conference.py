@@ -44,10 +44,10 @@ created by wesc on 2014 apr 21
 
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
-MEMCACHE_FEATUREDSPEAKER_KEY = "FEATURED SPEAKER"
+MEMCACHE_FEATURED_SPEAKER_KEY = "FEATURED SPEAKER"
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
-FEATURED_SPEAKER_ANNOUNCEMENT = ""
-# Announcement too?
+FEATURED_SPEAKER_ANNOUNCEMENT = "Featured Speaker at %s: %s is speaking in " \
+                                "the following sessions: %s"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -91,22 +91,17 @@ WISHLIST_POST_REQUEST = endpoints.ResourceContainer(
 
 SESS_BY_SPEAKER_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    speakerKey=messages.StringField(1,
-                                    required=True))
+    speakerKey=messages.StringField(1, required=True))
 
 SESS_BY_DATE_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    websafeConferenceKey=messages.StringField(1,
-                                              required=True),
-    date=messages.StringField(2,
-                              required=True))
+    websafeConferenceKey=messages.StringField(1, required=True),
+    date=messages.StringField(2, required=True))
 
 SESS_BY_TYPE_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    websafeConferenceKey=messages.StringField(1,
-                                              required=True),
-    typeOfSession=messages.StringField(2,
-                                       required=True))
+    websafeConferenceKey=messages.StringField(1, required=True),
+    typeOfSession=messages.StringField(2, required=True))
 
 SESS_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
@@ -371,7 +366,6 @@ class ConferenceApi(remote.Service):
                     setattr(sf, field.name, str(getattr(sess, field.name)))
                 # Convert typeOfSession to enum
                 elif field.name == "typeOfSession":
-                    print field.name
                     setattr(sf, field.name,
                             getattr(TypeOfSession, getattr(sess, field.name)))
                 else:
@@ -672,9 +666,6 @@ class ConferenceApi(remote.Service):
             ancestor=ndb.Key(urlsafe=request.websafeConferenceKey))
         # Filter on type of session
         sessions = s_key.filter(Session.typeOfSession == request.typeOfSession)
-        print "----------------------------------"
-        print sessions
-        print "----------------------------------"
         return SessionForms(
             items=[self._copy_session_to_form(s) for s in sessions])
 
@@ -687,7 +678,6 @@ class ConferenceApi(remote.Service):
         """ Given a conference, return all sessions """
         user = endpoints.get_current_user()
 
-        print "--------------------------\n{}\n-------------".format(user)
         # Auth the user
         if not user:
             raise endpoints.UnauthorizedException("Authorization required")
@@ -699,7 +689,6 @@ class ConferenceApi(remote.Service):
             raise endpoints.BadRequestException(
                 "websafeConferenceKey is not valid.")
         conf = c_key.get()
-        print "-----------\n{}\n------------".format(conf)
         # Check if the conference exists
         if not conf:
             raise endpoints.NotFoundException(
@@ -707,8 +696,6 @@ class ConferenceApi(remote.Service):
                 " Key: {}".format(request.websafeConferenceKey))
         # Get the conferences sessions
         sessions = Session.query(ancestor=c_key)
-        print "--------------------\n Sessions:\n{}\n--------------".format(
-            sessions)
         # Return a SessionForm for a Session
         return SessionForms(
             items=[self._copy_session_to_form(sess) for sess in sessions])
@@ -795,7 +782,6 @@ class ConferenceApi(remote.Service):
                 'No conference found with key: %s' %
                 request.websafeConferenceKey)
         prof = conf.key.parent().get()
-        print prof
         # return ConferenceForm
         return self._copy_conference_to_form(conf,
                                              getattr(prof, 'displayName'))
@@ -1019,42 +1005,38 @@ class ConferenceApi(remote.Service):
 
     # -------- featured speakers -----------
     @staticmethod
-    def _cache_featured_speaker(websafeConferenceKey, websafeSpeakerKey):
-        """Create Featured Speaker & assign to memcache; used by
-        memcache cron job & putAnnouncement().
-        """
-        conf_key = ndb.Key(urlsafe=websafeConferenceKey)
-        conf = conf_key.get()
-        speaker_key = ndb.Key(urlsafe=websafeSpeakerKey)
-        speaker = speaker_key.get()
-
-        session = Session.query(ancestor=conf_key).filter(
+    def _cache_featured_speaker(speaker_websafekey, conference_websafekey):
+        """ Create an announcment for the featured speaker and assign it to
+         memcache """
+        # Get the speaker and conference keys
+        conference_key = ndb.Key(urlsafe=conference_websafekey)
+        speaker_key = ndb.Key(urlsafe=speaker_websafekey)
+        sessions = Session.query(ancestor=conference_key).filter(
             Session.speakerKey == speaker_key)
 
-        if session.count() > 1:
-            speakr = speaker_key.get()
-            conference = conf_key.get()
-            sess_names = ", ".join([x.name for x in session])
+        # Getting the required data and adding it to the announcement
+        if sessions.count() > 1:
+            conference = conference_key.get()
+            speaker = speaker_key.get()
+            sessions_names = ', '.join([x.name for x in sessions])
             if speaker:
-                announcement = FEATURED_SPEAKER_ANNOUNCEMENT + """
-                Speaker: {0}\n
-                Conference{1}\n
-                Session{2}""".format(speakr.name,
-                                     conference.name,
-                                     sess_names)
-                memcache.set(MEMCACHE_FEATUREDSPEAKER_KEY, announcement)
+                announcement = FEATURED_SPEAKER_ANNOUNCEMENT % (
+                    conference.name,
+                    speaker.name,
+                    sessions_names)
+                memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, announcement)
             else:
-                announcement = "empty"
-                memcache.delete(MEMCACHE_FEATUREDSPEAKER_KEY)
+                announcement = ""
+                memcache.delete(MEMCACHE_FEATURED_SPEAKER_KEY)
 
     @endpoints.method(message_types.VoidMessage, StringMessage,
-                      path="featuredSpeakerAnnouncement",
-                      http_method="GET",
-                      name="getFeaturedSpeaker")
+                      path='features_speaker_announcement/get',
+                      http_method='GET',
+                      name='getFeaturedSpeaker')
     def get_featured_speaker(self, request):
-        """ Returns featured speaker announcement from memcache """
+        """Return Announcement from memcache."""
         return StringMessage(
-            data=memcache.get(MEMCACHE_FEATUREDSPEAKER_KEY) or "")
+            data=memcache.get(MEMCACHE_FEATURED_SPEAKER_KEY) or "")
 
 
 api = endpoints.api_server([ConferenceApi])  # register API
