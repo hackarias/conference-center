@@ -357,9 +357,6 @@ class ConferenceApi(remote.Service):
         data['key'] = s_key
 
         Session(**data).put()
-        taskqueue.add(params={'email': user.email(),
-                              'conferenceInfo': repr(request)},
-                      url='/tasks/send_confirmation_email')
         return request
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
