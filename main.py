@@ -39,7 +39,7 @@ class SendConfirmationEmailHandler(webapp2.RequestHandler):
         )
 
 
-class SetFeaturedSpeaker(webapp2.RequestHandler):
+class SetFeaturedSpeakerHandler(webapp2.RequestHandler):
     def post(self):
         """ If a speaker talks on more than one session """
         conference_key = self.request.get('conference_key')
@@ -50,5 +50,5 @@ class SetFeaturedSpeaker(webapp2.RequestHandler):
 app = webapp2.WSGIApplication([
     ('/crons/set_announcement', SetAnnouncementHandler),
     ('/tasks/send_confirmation_email', SendConfirmationEmailHandler),
-    ('/tasks/set_featured_speaker', SetFeaturedSpeaker),
+    ('/tasks/set_featured_speaker', SetFeaturedSpeakerHandler),
 ], debug=True)

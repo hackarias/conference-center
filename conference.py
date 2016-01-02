@@ -143,7 +143,7 @@ class ConferenceApi(remote.Service):
         # get session; check that it exists
 
         try:
-            s_key = ndb.Key(urlsafe=request.websafeConferenceKey)
+            s_key = ndb.Key(urlsafe=request.websafeSessionKey)
         except Exception:
             raise endpoints.BadRequestException(
                 "the websafeSessionKey given is not valid.")
@@ -154,24 +154,22 @@ class ConferenceApi(remote.Service):
             raise endpoints.NotFoundException(
                 'No session found with key: {}').format(session)
 
-        conf = session.key.parent().get()
-        c_key = conf.key.urlsafe()
         # Add to wishlist
         if add:
             # Check if user already has this session in wishlist
-            if c_key in prof.sessionWishList:
+            if session in prof.sessionWishList:
                 raise ConflictException(
                     "You have already have this session in your wishlist")
             # Go ahead and add it to the wishlist
             # Add to wishlist
-            prof.sessionWishList.append(c_key)
+            prof.sessionWishList.append(session)
             return_value = True
         # Remove session from wishlist
         else:
             # check if user already registered
-            if c_key in prof.sessionWishList:
+            if session in prof.sessionWishList:
                 # Remove session
-                prof.sessionWishList.remove(c_key)
+                prof.sessionWishList.remove(session)
                 return_value = True
             else:
                 return_value = False
@@ -197,7 +195,7 @@ class ConferenceApi(remote.Service):
                       path="removeSessionFromWishList/{websafeConferenceKey}",
                       http_method="DELETE",
                       name="removeSessionFromWishList")
-    def remove_session_from_wishlist(self, request):
+    def remove_session_from_wishlist(self, request, add=False):
         """
         Removes the session from the user's list of session they are interest
         in attending
@@ -294,7 +292,7 @@ class ConferenceApi(remote.Service):
         # Generate key for Speaker using Session and the Speaker ID
         s_id = Session.allocate_ids(size=1)[0]
         s_key = ndb.Key(Speaker, s_id)
-        data['key'] = s_key
+        data['websafeKey'] = s_key
 
         # Create Speaker
         Speaker(**data).put()
@@ -331,7 +329,6 @@ class ConferenceApi(remote.Service):
 
     def _create_conference_object(self, request):
         """
-
         Create or update Conference object, returning ConferenceForm/request.
         """
         # preload necessary data items
@@ -451,7 +448,7 @@ class ConferenceApi(remote.Service):
                       name='getConference')
     def get_conference(self, request):
         """Return requested conference by websafeConferenceKey."""
-        # get Conference object from request; bail if not found
+        # get Conference object from request
         conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
         if not conf:
             raise endpoints.NotFoundException(
@@ -665,6 +662,7 @@ class ConferenceApi(remote.Service):
             items=[self._copy_session_to_form(sess) for sess in sessions])
 
     def _create_session_object(self, request):
+        """ Create session object """
         global speaker
         user = endpoints.get_current_user()
         # Auth the user
@@ -676,6 +674,10 @@ class ConferenceApi(remote.Service):
         if not request.name:
             raise endpoints.BadRequestException(
                 "Session 'name' field required")
+
+        if not request.date:
+            raise endpoints.BadRequestException(
+                "Session 'date' field required")
 
         # We are going to need information from the Conference the session
         # belongs to.
@@ -719,12 +721,14 @@ class ConferenceApi(remote.Service):
         if data['typeOfSession']:
             data['typeOfSession'] = str(data['typeOfSession'])
 
-        # Generate profile key based on user ID and Session
-        # ID based on Profile key get Conference key from ID
         p_key = ndb.Key(Profile, user_id)
-        s_id = Session.allocate_ids(size=1, parent=p_key)[0]
+        s_id = Session.allocate_ids(size=1, parent=c_key)[0]
         s_key = ndb.Key(Session, s_id, parent=p_key)
         data['key'] = s_key
+        # TODO: add to taskqueue
+        taskqueue.add(params={'conference_key': conference,
+                              'speaker_key': speaker},
+                      url='/tasks/set_featured_speaker')
 
         Session(**data).put()
         return request
@@ -743,7 +747,7 @@ class ConferenceApi(remote.Service):
                             getattr(TypeOfSession, getattr(sess, field.name)))
                 else:
                     setattr(sf, field.name, getattr(sess, field.name))
-            elif field.name == "websafeConferenceKey":
+            elif field.name == "websafeSessionKey":
                 setattr(sf, field.name, sess.key.urlsafe())
         sf.check_initialized()
         return sf

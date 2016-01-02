@@ -16,8 +16,28 @@
 #### Session
 A session entity represents a conference event and can be of several types. A session must be a child of a conference since you can't have independent sessions outside of the conferences. This is done by creating a relationship between sessions and conferences by passing the required key to `parentConference`, and can only be done by the creator of the conference. Currently there is no limit on how many sessions an conference can host.
 
+| *Name*            | * NDB Property* | *Reason*                                             |
+| ----------------- | :-------------: | ---------------------------------------------------: |
+| name              | StringProperty  | String since it should contain only text.            |
+| highlights        | StringProperty  | String since it should contain only text.            |
+| speakerKey        | StringProperty  | String since it should contain only text.            |
+| duration          | IntegerProperty | Integer since it should contain only numeric values. |
+| typeOfSession     | StringProperty  | String since it should contain only text.            |
+| date              | DateProperty    | Date since it should contain only the date.          |
+| startTime         | TimeProperty    | Time since it should contain only the time.          |
+| parentConference  | StringProperty  | String since it should contain only text.            |
+| websafeSessionKey | StringProperty  | String since it should contain only text.            |
+
+
 #### Speaker
 `Speakers` are associated with entities session and are, just as `Sessions`, a separate entity. This design choice was made to make the code more readable and consistent, both in how it's structured but also how the API calls are being made. Unlike `Sessions`, `Speakers` only required field is `name`.   
+
+| *Name*     | *Property*     | *Reason*                           |
+| ---------- | :------------: | ---------------------------------: |
+| name       | StringProperty | Since the name just contains text. |
+| websafeKey | KeyProperty    | Since it's a datastore key.        |
+
+
 
 ## Additional queries
 #### getSessionsByDate

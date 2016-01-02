@@ -20,11 +20,13 @@ __author__ = 'wesc+api@google.com (Wesley Chun)'
 class Speaker(ndb.Model):
     """ Speaker -- Speaker object """
     name = ndb.StringProperty(required=True)
+    websafeKey = ndb.KeyProperty()
 
 
 class SpeakerForm(messages.Message):
     """ SpeakerForm -- Speaker outbound form message """
     name = messages.StringField(1)
+    websafeKey = messages.StringField(2)
 
 
 class SpeakerForms(messages.Message):
@@ -42,6 +44,7 @@ class Session(ndb.Model):
     date = ndb.DateProperty(required=True)
     startTime = ndb.TimeProperty()
     parentConference = ndb.StringProperty(required=True)
+    websafeSessionKey = ndb.StringProperty()
 
 
 class SessionForm(messages.Message):
@@ -54,6 +57,7 @@ class SessionForm(messages.Message):
     date = messages.StringField(6)  # DateTimeField()
     startTime = messages.StringField(7)  # DateTimeField()
     parentConference = messages.StringField(8)
+    websafeSessionKey = messages.StringField(9)
 
 
 class TypeOfSession(messages.Enum):
