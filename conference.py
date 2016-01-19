@@ -234,12 +234,12 @@ class ConferenceApi(remote.Service):
         user_id = getUserId(user)
 
         # Filter on conferences that has seats available
-        slot = Conference.query().filter(Conference.seatsAvailable > 0).order(
+        available_seats = Conference.query().filter(Conference.seatsAvailable > 0).order(
             Conference.seatsAvailable)
         prof = ndb.Key(Profile, user_id).get()
         return ConferenceForms(items=[
             self._copy_conference_to_form(conf, getattr(prof, 'displayName'))
-            for conf in slot])
+            for conf in available_seats])
 
     @endpoints.method(SpeakerForm,
                       SpeakerForm,
