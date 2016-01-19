@@ -160,9 +160,8 @@ class ConferenceApi(remote.Service):
             if session in prof.sessionWishList:
                 raise ConflictException(
                     "You have already have this session in your wishlist")
-            # Go ahead and add it to the wishlist
             # Add to wishlist
-            prof.sessionWishList.append(session)
+            prof.sessionWishList.append(session.key.urlsafe())
             return_value = True
         # Remove session from wishlist
         else:
@@ -185,22 +184,22 @@ class ConferenceApi(remote.Service):
                       name="addSessionToWishList")
     def add_session_to_wishlist(self, request):
         """
-        adds the session to the user's list of sessions they are interested in
+        Adds the session to the user's list of sessions they are interested in
         attending
         """
         return self._add_session_to_wishlist(request)
 
-    @endpoints.method(SESS_POST_REQUEST,
+    @endpoints.method(WISHLIST_POST_REQUEST,
                       BooleanMessage,
-                      path="removeSessionFromWishList/{websafeConferenceKey}",
-                      http_method="DELETE",
+                      path="removeSessionFromWishList/{websafeSessionKey}",
+                      http_method="POST",
                       name="removeSessionFromWishList")
-    def remove_session_from_wishlist(self, request, add=False):
+    def remove_session_from_wishlist(self, request):
         """
         Removes the session from the user's list of session they are interest
         in attending
         """
-        return self._add_session_to_wishlist(request)
+        return self._add_session_to_wishlist(request, add=False)
 
     @endpoints.method(message_types.VoidMessage,
                       SessionForms,
@@ -221,49 +220,26 @@ class ConferenceApi(remote.Service):
             items=[self._copy_session_to_form(s) for s in sessions])
 
     # - - - - Speaker section - - - - - - - - - - - - - - - - - -
-    @endpoints.method(SPEAKER_GET_REQUEST,
-                      SpeakerForms,
-                      path="conferenceSpeaker/{websafeConferenceKey}",
+
+    @endpoints.method(message_types.VoidMessage, ConferenceForms,
+                      path="conference/avialableSeats",
                       http_method="GET",
-                      name="getSpeakers")
-    def get_speakers(self, request):
-        """ Returns all the speakers for a given conference """
+                      name="getConferencesWithOpenSlots")
+    def get_conferences_with_open_slots(self, request):
+        """ Queries after conferences that are not full  """
         # Make sure that the user is authenticated
         user = endpoints.get_current_user()
         if not user:
-            raise endpoints.UnauthorizedException("Authorization required.")
-        # Try to get the conference key
-        try:
-            c_key = ndb.Key(urlsafe=request.websafeConferenceKey)
-        except Exception:
-            raise endpoints.BadRequestException(
-                "websafeConferenceKey: %s is invalid"
-                % request.websafeConferenceKey)
-        # Filter on the conferences's sessions
-        sessions = Session.query(ancestor=c_key).fetch()
-        # Get rid of duplicates
-        unique_speakers = set([session.speakerKey for session in sessions])
-        speakers = ndb.get_multi(unique_speakers)
-        return SpeakerForms(items=[SpeakerForm(name=getattr(name, 'name'))
-                                   for name in speakers])
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
 
-    @endpoints.method(CONF_GET_REQUEST,
-                      SpeakerForms,
-                      path="getSpeakersByConference/{websafeConferenceKey}",
-                      http_method="GET",
-                      name="getSpeakersByConference")
-    def get_speakers_by_conference(self, request):
-        """ Returns all speakers from given conference """
-        # Make sure that the user is authenticated
-        user = endpoints.get_current_user()
-        if not user:
-            raise endpoints.UnauthorizedException("Authorization required.")
-
-        # Get speakerKey
-        speaker_key = Speaker.query(
-            ancestor=ndb.Key(urlsafe=request.speakerKey))
-        return SpeakerForms(
-            items=[self._copy_speaker_to_form(s) for s in speaker_key])
+        # Filter on conferences that has seats available
+        slot = Conference.query().filter(Conference.seatsAvailable > 0).order(
+            Conference.seatsAvailable)
+        prof = ndb.Key(Profile, user_id).get()
+        return ConferenceForms(items=[
+            self._copy_conference_to_form(conf, getattr(prof, 'displayName'))
+            for conf in slot])
 
     @endpoints.method(SpeakerForm,
                       SpeakerForm,
@@ -289,14 +265,8 @@ class ConferenceApi(remote.Service):
         data = {field.name: getattr(request, field.name)
                 for field in request.all_fields()}
 
-        # Generate key for Speaker using Session and the Speaker ID
-        s_id = Session.allocate_ids(size=1)[0]
-        s_key = ndb.Key(Speaker, s_id)
-        data['websafeKey'] = s_key
-
-        # Create Speaker
-        Speaker(**data).put()
-        return request
+        speaker_key = Speaker(**data).put()
+        return self._copy_speaker_to_form(speaker_key.get())
 
     def _copy_speaker_to_form(self, copy_speaker):
         """ Copy relevant fields from Speaker to SpeakerForm """
@@ -304,7 +274,7 @@ class ConferenceApi(remote.Service):
         for field in sf.all_fields():
             if hasattr(copy_speaker, field.name):
                 setattr(sf, field.name, getattr(copy_speaker, field.name))
-            elif field.name == "websafeKey":
+            if field.name == "websafeKey":
                 setattr(sf, field.name, copy_speaker.key.urlsafe())
         sf.check_initialized()
         return sf
@@ -698,7 +668,7 @@ class ConferenceApi(remote.Service):
                 speaker = ndb.Key(urlsafe=request.speakerKey).get()
             except Exception:
                 raise endpoints.BadRequestException(
-                    "speakerKey {} is not valid.".format(speaker))
+                    "speakerKey {} is not valid.".format(request.speakerKey))
 
         # Copy SessionForm/ProtoRPC Message into dict.
         data = {field.name: getattr(request, field.name)
@@ -723,15 +693,15 @@ class ConferenceApi(remote.Service):
 
         p_key = ndb.Key(Profile, user_id)
         s_id = Session.allocate_ids(size=1, parent=c_key)[0]
-        s_key = ndb.Key(Session, s_id, parent=p_key)
+        s_key = ndb.Key(Session, s_id, parent=c_key)
         data['key'] = s_key
         # TODO: add to taskqueue
-        taskqueue.add(params={'conference_key': conference,
-                              'speaker_key': speaker},
+        taskqueue.add(params={'conference_key': conference.key.urlsafe(),
+                              'speaker_key': request.speakerKey},
                       url='/tasks/set_featured_speaker')
-
         Session(**data).put()
-        return request
+        # return request
+        return self._copy_session_to_form(s_key.get())
 
     def _copy_session_to_form(self, sess):
         """Copy relevant fields from Session to SessionForm."""
@@ -747,7 +717,7 @@ class ConferenceApi(remote.Service):
                             getattr(TypeOfSession, getattr(sess, field.name)))
                 else:
                     setattr(sf, field.name, getattr(sess, field.name))
-            elif field.name == "websafeSessionKey":
+            if field.name == "websafeSessionKey":
                 setattr(sf, field.name, sess.key.urlsafe())
         sf.check_initialized()
         return sf
@@ -971,11 +941,6 @@ class ConferenceApi(remote.Service):
     def filter_playground(self):
         """Filter Playground"""
         q = Conference.query()
-        # field = "city"
-        # operator = "="
-        # value = "London"
-        # f = ndb.query.FilterNode(field, operator, value)
-        # q = q.filter(f)
         q = q.filter(Conference.city == "London")
         q = q.filter(Conference.topics == "Medical Innovations")
         q = q.filter(Conference.month == 6)

@@ -43,8 +43,8 @@ A session entity represents a conference event and can be of several types. A se
 #### getSessionsByDate
 `getSessionsByDate` returns all sessions for a conference on a given date. If participants are only able to attend a conference on a specific date, one would want to filter by date to see what options there are.
 
-#### getSpeakers
-`getSpeakers` returns all the speakers for the given conference. This gives an overview of who is going to speaking at the conference.
+#### getConferencesWithOpenSlots"
+`getConferencesWithOpenSlots` returns all the conferences with seats still available. This way the user easier knows which conference to register for.
 
 ## Solve the following query related problem
 > Let’s say that you don't like workshops and you don't like sessions after 7 pm. How would you handle a query for all non-workshop sessions before 7 pm? What is the problem for implementing this query? What ways to solve it did you think of?
