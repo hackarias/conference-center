@@ -43,7 +43,7 @@ A session entity represents a conference event and can be of several types. A se
 #### getSessionsByDate
 `getSessionsByDate` returns all sessions for a conference on a given date. If participants are only able to attend a conference on a specific date, one would want to filter by date to see what options there are.
 
-#### getConferencesWithOpenSlots"
+#### getConferencesWithOpenSlots
 `getConferencesWithOpenSlots` returns all the conferences with seats still available. This way the user easier knows which conference to register for.
 
 ## Solve the following query related problem
