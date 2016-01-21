@@ -957,7 +957,7 @@ class ConferenceApi(remote.Service):
         conference_key = ndb.Key(urlsafe=conference_websafekey)
         speaker_key = ndb.Key(urlsafe=speaker_websafekey)
         sessions = Session.query(ancestor=conference_key).filter(
-            Session.speakerKey == speaker_key)
+            Session.speakerKey == speaker_key.urlsafe())
 
         # Getting the required data and adding it to the announcement
         if sessions.count() > 1:
